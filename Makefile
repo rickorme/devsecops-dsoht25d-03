@@ -120,6 +120,10 @@ run-frontend: ## Start React dev server
 	@echo "⚛️ Starting React Frontend..."
 	cd frontend && npm run dev
 
+run-playwright-codegen: ## Start Playwright code generator for E2E tests (generates test code as you interact with the UI)
+	@echo "🎬 Starting Playwright Code Generator..."
+	cd backend && uv run playwright codegen http://localhost:3000
+
 
 # -- Environment Setup --
 .PHONY: setup-env secrets
