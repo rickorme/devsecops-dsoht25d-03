@@ -1,6 +1,6 @@
 // frontend/tests/AddMemberModal.test.jsx
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, beforeEach } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AddMemberModal from '../../src/components/circles/AddMemberModal'; 
 import { circleMemberService } from '../../src/services/circleMember.service';

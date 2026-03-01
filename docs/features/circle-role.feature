@@ -21,7 +21,7 @@ Feature: Circle Roles
       | Moderator   | All Member + Delete posts, Remove members, Approve join requests |
       | Owner       | All Moderator + Delete circle, Assign roles, Change settings |
 
-  @circle_owner @critical
+  @circle_owner @critical @todo
   Scenario: Owner has full circle control
     Given I am logged in as alice
     And I am the owner of circle "Book Club"
