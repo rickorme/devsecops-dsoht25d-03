@@ -9,6 +9,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: '30 1 * * 0'
 
 jobs:
   ci:
@@ -42,6 +44,12 @@ jobs:
     steps:
       - name: Common step > Checkout code
         uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}
+          build-mode: none
 
       # ======================================================
       # 🛠️ COMMON SETUP
@@ -185,3 +193,8 @@ jobs:
           pkill -f "node" || true
           # If your backend is also running in the background, kill uvicorn/python:
           pkill -f "uvicorn" || true          
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
