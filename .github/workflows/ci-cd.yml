@@ -163,9 +163,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          # Cache key based on package-lock.json (where Playwright version is defined)
+          # Cache key based on uv.lock (where Playwright version is defined)
           # FIXED: Was pointing to backend/pyproject.toml before!
-          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('backend/uv.lock') }}
       
       - name: ⚛️ Frontend - Install Playwright Browsers
         if: >-
