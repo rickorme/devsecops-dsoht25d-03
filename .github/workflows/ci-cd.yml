@@ -13,9 +13,9 @@ on:
     - cron: '30 1 * * 0'
 
 permissions:
+  actions: read
   contents: read
   security-events: read
-  pull-requests: read
 
 jobs:
   ci:
@@ -203,3 +203,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
+          upload: ${{ github.repository_owner == github.actor }}
