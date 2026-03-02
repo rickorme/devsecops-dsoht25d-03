@@ -70,7 +70,7 @@ jobs:
       # Note: We initialize CodeQL early, but the actual analysis runs at the end
       # ----------------------------------------------------------------------------
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           # Select language based on matrix target
           languages: ${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}
@@ -218,7 +218,7 @@ jobs:
       # ============================================================================
       
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           # Category helps identify which language was analyzed
           category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
