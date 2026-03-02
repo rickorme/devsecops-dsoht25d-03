@@ -203,4 +203,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
-          upload: ${{ github_repository_owner == github_actor }}
+          upload: ${{ github.repository_owner == github.actor }}
