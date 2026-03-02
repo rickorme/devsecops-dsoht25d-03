@@ -1,6 +1,7 @@
 // frontend/src/components/posts/PostCard.jsx
 import './PostCard.css';
 
+
 const PostCard = ({ post, showCircle = false }) => {
   return (
     <div className="post-card">

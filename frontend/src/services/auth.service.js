@@ -3,21 +3,6 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/index';
   
 // Service for handling authentication-related API calls
-/*
-// Use environment variable for API URL (DevSecOps best practice)
-// Falls back to versioned API path if not set
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000;
-
-// Optional: Log configuration in development
-if (import.meta.env.VITE_ENABLE_DEBUG === 'true') {
-  console.log('🔧 API Configuration:', {
-    API_URL,
-    API_TIMEOUT,
-    Environment: import.meta.env.VITE_ENV
-  });
-}
-*/
 export const authService = {
   /**
    * Login user with session-based auth

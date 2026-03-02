@@ -4,6 +4,7 @@ import api from './api';
 const BASE_URL = '/circles'; 
 
 export const circleService = {
+  // Fetch circles that the user is a member of
   getMyCircles: async () => {
     try {
       const response = await api.get(`${BASE_URL}/my`);
@@ -14,6 +15,7 @@ export const circleService = {
     }
   },
 
+  // Fetch details of a specific circle by ID
   getCircle: async (circleId) => {
     try {
       const response = await api.get(`${BASE_URL}/${circleId}`);
@@ -24,6 +26,7 @@ export const circleService = {
     }
   },
 
+  // Create a new circle
   createCircle: async (circleData) => {
     try {
       const response = await api.post(BASE_URL, circleData);
@@ -33,4 +36,6 @@ export const circleService = {
       throw error;
     }
   }
+
+  // Additional methods for updating or deleting circles can be added here
 };

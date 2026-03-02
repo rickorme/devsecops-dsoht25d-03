@@ -38,4 +38,6 @@ export const circleMemberService = {
     const response = await api.put(`/circles/${circleId}/name`, { name });
     return response.data;
   }
+
+  // Additional member management methods can be added here
 };

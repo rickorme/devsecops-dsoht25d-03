@@ -24,6 +24,7 @@ const AuthProvider = ({ children }) => {
     checkExistingAuth();
   }, []);
 
+  // Login function that calls the auth service and updates state
   const login = async ({ username, password }) => {
     try {
       const result = await authService.login({ username, password });
@@ -37,6 +38,7 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  // Register function that calls the auth service and updates state
   const register = async (userData) => {
     try {
       const result = await authService.register(userData);
@@ -47,6 +49,7 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logout function that calls the auth service and updates state
   const logout = async () => {
     try {
       await authService.logout();

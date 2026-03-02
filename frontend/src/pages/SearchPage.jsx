@@ -18,6 +18,7 @@ function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('users');
 
+  // Function to perform search using the search service
   const performSearch = useCallback(async () => {
     setLoading(true);
     try {

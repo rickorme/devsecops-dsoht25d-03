@@ -1,35 +1,46 @@
 name: CI/CD Pipeline
 
 on:
-  
-  # This line enables the manual GitHub Actions trigger button 
+  # Allow manual trigger from GitHub Actions tab
   workflow_dispatch:
-
+  
+  # Automatic triggers
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # Weekly schedule: every Sunday at 1:30 AM
   schedule:
     - cron: '30 1 * * 0'
 
+# ============================================================================
+# PERMISSIONS
+# ============================================================================
+# Define what permissions GitHub Actions has
+# IMPORTANT: security-events: write is REQUIRED for CodeQL to upload results
+# ----------------------------------------------------------------------------
 permissions:
-  actions: read
-  contents: read
-  security-events: read
+  actions: read          # Read workflow files
+  contents: read         # Read repository contents
+  security-events: write  # Write security results (CodeQL, etc.) - FIXED!
 
 jobs:
   ci:
-    # Dynamically name the job based on the matrix target
+    # Dynamically name the job based on matrix target
     name: ${{ matrix.target == 'backend' && 'Backend CI' || 'Frontend CI' }}
     runs-on: ubuntu-latest
     
     strategy:
-      # If one target fails (e.g., backend), let the other (frontend) finish
+      # Continue other jobs even if one fails
       fail-fast: false
       matrix:
         target: [backend, frontend]
 
-    # Shared PostgreSQL service available to both parallel jobs
+    # ============================================================================
+    # SERVICES
+    # ============================================================================
+    # PostgreSQL database shared between backend and frontend jobs
+    # ----------------------------------------------------------------------------
     services:
       db:
         image: postgres:15
@@ -47,83 +58,77 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Common step > Checkout code
+      # ============================================================================
+      # COMMON STEPS (run for both backend and frontend)
+      # ============================================================================
+      
+      - name: Checkout code
         uses: actions/checkout@v4
 
+      # ----------------------------------------------------------------------------
+      # CODEQL INITIALIZATION
+      # Note: We initialize CodeQL early, but the actual analysis runs at the end
+      # ----------------------------------------------------------------------------
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
+          # Select language based on matrix target
           languages: ${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}
-          build-mode: none
+          build-mode: none  # No build needed for Python/JS
 
-      # ======================================================
-      # 🛠️ COMMON SETUP
-      # These steps prepare the environment for both stacks.
-      # ======================================================
+      # ----------------------------------------------------------------------------
+      # ENVIRONMENT SETUP
+      # ----------------------------------------------------------------------------
       
-      - name: Common step > Install uv
+      - name: Install uv (Python package manager)
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"        
 
-      - name: Common step > Install Backend
+      - name: Setup Backend Environment
         run: |
-          # ---------------------------------------------------------
-          # SECURE .ENV GENERATION
-          # We construct the .env file dynamically using GitHub Secrets.
-          # This file only exists for the duration of this CI job.
-          # ---------------------------------------------------------
-          
-          # 1. create the file
+          # Create .env file with database credentials from GitHub Secrets
           touch backend/.env
           
-          # 2.1 Inject the connection string (Using 127.0.0.1 to fix DNS issues)
+          # Database connection strings
           echo "DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env
-          
-          # 2.2 Inject Test DB URL for Pytest
           echo "TEST_DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env          
           
-          # 3. 
+          # Install backend dependencies and run migrations
           make install-backend
 
-      # Both jobs get a migrated DB and a running server.
-      - name: Common step > Setup Test DB & Start Backend
+      - name: Setup Test Database & Start Backend Server
         run: |
-          
+          # Seed database with test data
           make seed-database   
           
-          # 2. Start Server in Background
-          #    - Backend tests might ignore this (if using TestClient), 
-          #      but it ensures the environment is fully ready.
-          #    - Frontend tests (Playwright) definitely need this.
+          # Start backend server in background
+          # Frontend tests need this running
           make run-backend-for-ci
 
-      # ======================================================
-      # 🐍 BACKEND CI specific steps
-      # Runs only when the matrix target is 'backend'
-      # ======================================================
-
-      - name: 🐍 Backend CI specific step > Lint, Format, Security
+      # ============================================================================
+      # BACKEND-SPECIFIC STEPS
+      # Only runs when matrix.target == 'backend'
+      # ============================================================================
+      
+      - name: 🐍 Backend - Lint, Format, Security
         if: matrix.target == 'backend'
         run: |
           make lint-backend
           make security-backend
 
-      - name: 🐍 Backend CI specific step > Run Unit and Integration Tests
+      - name: 🐍 Backend - Run Unit and Integration Tests
         if: matrix.target == 'backend'
-        # env:
-          # DATABASE_URL: postgresql+asyncpg://user:password@127.0.0.1:5432/app_db
-          # TEST_DATABASE_URL: postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}
         run: make test-backend
 
-      # ======================================================
-      # ⚛️ FRONTEND CI specific steps
-      # Runs only when the matrix target is 'frontend'
-      # ======================================================
-
-      - name: ⚛️ Frontend CI specific step > Setup Node.js
+      # ============================================================================
+      # FRONTEND-SPECIFIC STEPS
+      # Only runs when matrix.target == 'frontend'
+      # ============================================================================
+      
+      - name: ⚛️ Frontend - Setup Node.js
         if: matrix.target == 'frontend'
         uses: actions/setup-node@v4
         with:
@@ -131,76 +136,92 @@ jobs:
           cache: "npm"
           cache-dependency-path: "frontend/package-lock.json"
 
-      - name: ⚛️ Frontend CI specific step > Install Frontend
+      - name: ⚛️ Frontend - Install Dependencies
         if: matrix.target == 'frontend'
         run: make install-frontend
 
-      - name: ⚛️ Frontend CI specific step > Audit
+      - name: ⚛️ Frontend - Security Audit
         if: matrix.target == 'frontend'
         run: make audit-frontend
 
-      - name: ⚛️ Frontend CI specific step > Lint
+      - name: ⚛️ Frontend - Lint
         if: matrix.target == 'frontend'
         run: make lint-frontend
 
-      - name: ⚛️ Frontend CI specific test > ⚡ Running Vitest
+      - name: ⚛️ Frontend - Unit Tests (Vitest)
         if: matrix.target == 'frontend'
         run: make test-frontend-unit 
 
-      # Playwright install 1: Define the Cache logic
-      - name: ⚛️ Frontend CI specific step > 🎭📦 Cache Playwright Browsers
+      # ----------------------------------------------------------------------------
+      # PLAYWRIGHT SETUP (for E2E tests)
+      # Complex caching strategy to speed up CI
+      # ----------------------------------------------------------------------------
+      
+      - name: ⚛️ Frontend - Cache Playwright Browsers
         if: matrix.target == 'frontend'
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          # The key ensures that if you update Playwright version in pyproject.toml,
-          # the cache is invalidated and fresh browsers are downloaded.
-          key: ${{ runner.os }}-playwright-${{ hashFiles('backend/pyproject.toml') }}  
+          # Cache key based on uv.lock (where Playwright version is defined)
+          # FIXED: Was pointing to backend/pyproject.toml before!
+          key: ${{ runner.os }}-playwright-${{ hashFiles('backend/uv.lock') }}
       
-      # Playwright install 2: Only install if the cache was NOT found
-      - name: ⚛️ Frontend CI specific step > 🎭 Install Playwright Browsers
+      - name: ⚛️ Frontend - Install Playwright Browsers
         if: >-
           matrix.target == 'frontend' &&
           steps.playwright-cache.outputs.cache-hit != 'true'
         run: make install-playwright
 
-      # Playwright install 3: Even if cache hits, we still need the system dependencies (drivers/libs)
-      # This is much faster than downloading the whole browser
-      - name: ⚛️ Frontend CI specific step > 🎭🏗️ Install Playwright System Dependencies
+      - name: ⚛️ Frontend - Install Playwright System Dependencies
         if: >-
           matrix.target == 'frontend' &&
           steps.playwright-cache.outputs.cache-hit == 'true'
         run: make install-playwright-deps-only
 
-      - name: ⚛️ Frontend CI specific step > Run E2E Tests
+      - name: ⚛️ Frontend - Run E2E Tests
         if: matrix.target == 'frontend'
         env:
           BASE_URL: http://127.0.0.1:8000
-          # Ensure Playwright knows to look at localhost:3000
           FRONTEND_URL: http://localhost:3000
         run: |
-          # 1. Start via Makefile in the background
+          # Start frontend in background
           make run-frontend & 
           
-          # 2. Wait for the port to be active (matches your 120s timeout)
-          # This ensures the React dev server is fully compiled
+          # Wait for frontend to be ready (max 120 seconds)
           npx wait-on http://localhost:3000 --timeout 120000
           
-          # 3. Run your BDD tests
+          # Verify frontend started successfully
+          if [ $? -ne 0 ]; then
+            echo "❌ Frontend server failed to start"
+            exit 1
+          fi
+          
+          # Run E2E tests
           make test-e2e
 
-      - name: Common step > 🧹 Cleanup background processes
-        if: always() # Ensures this runs even if the tests fail!
+      # ============================================================================
+      # CLEANUP (runs for both matrix targets)
+      # ============================================================================
+      
+      - name: 🧹 Cleanup background processes
+        if: always()  # Run even if previous steps fail
         run: |
           echo "Shutting down background servers..."
-          pkill -f "npm" || true
-          pkill -f "node" || true
-          # If your backend is also running in the background, kill uvicorn/python:
-          pkill -f "uvicorn" || true          
+          pkill -f "npm" || true   # Kill npm processes
+          pkill -f "node" || true   # Kill node processes
+          pkill -f "uvicorn" || true # Kill uvicorn (backend)
 
+      # ============================================================================
+      # CODEQL ANALYSIS
+      # IMPORTANT: This must run AFTER all tests but with proper permissions
+      # ============================================================================
+      
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
+          # Category helps identify which language was analyzed
           category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
-          upload: ${{ github.repository_owner == github.actor }}
+          # FIXED: upload must be 'always', 'never', or 'failure-only'
+          # The previous expression ${{ github.repository_owner == github.actor }} was INCORRECT
+          upload: always  # Always upload results to GitHub Security tab

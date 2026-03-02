@@ -1,6 +1,7 @@
 // frontend/src/services/search.service.js
 import api from './api';
 
+// Service for handling search-related API calls
 export const searchService = {
   search: async (query) => {
     try {

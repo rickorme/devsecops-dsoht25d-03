@@ -79,12 +79,6 @@ npm run test:run  # Single run
 npm run test:e2e        # Runs all .feature files
 npm run test:e2e:ui     # Interactive UI
 
-### API:
-
-http://localhost:3000/login
-http://localhost:3000/register
-http://localhost:3000/dashboard
-
 ## Testing Strategy
 
 Vitest: Unit and integration tests for React components
@@ -153,8 +147,6 @@ uv run uvicorn app.main:app --reload --port 8000
 
 Backend: http://localhost:8000/health
 
-Frontend: http://localhost:3000
-
 API Docs: http://localhost:8000/docs
 
 ## Run tests (in another terminal)
@@ -166,6 +158,11 @@ Project Status
 🔜 Database integration
 🔜 Authentication system
 🔜 Deployment configuration
+
+### API documentation
+
+http://localhost:8000/docs
+http://localhost:8000/redocs
 
 Notes
 All frontend commands must be executed from the frontend directory
