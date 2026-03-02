@@ -130,6 +130,10 @@ jobs:
         if: matrix.target == 'frontend'
         run: make lint-frontend
 
+      - name: ⚛️ Frontend CI specific test > ⚡ Running Vitest
+        if: matrix.target == 'frontend'
+        run: make test-frontend-unit 
+
       # Playwright install 1: Define the Cache logic
       - name: ⚛️ Frontend CI specific step > 🎭📦 Cache Playwright Browsers
         if: matrix.target == 'frontend'
