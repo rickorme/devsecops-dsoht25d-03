@@ -82,11 +82,6 @@ test-e2e: ## Run end-to-end tests (Playwright in headless mode)
 	@echo "🎭 Running E2E Tests..."
 	cd backend && uv run pytest tests/e2e/step_defs/
 
-test-e2e-ui: ## Run headed end-to-end tests with Playwright UI Runner (available on Port 6080 via VNC)
-	@echo "📺 Opening Playwright UI Runner, available on Port 6080..."
-	# We manually set DISPLAY to :1 (the default for desktop-lite)
-	cd backend && DISPLAY=:1 LIBGL_ALWAYS_SOFTWARE=1 uv run pytest tests/e2e/step_defs/ --ui
-
 test-e2e-headed: ## Run headed end-to-end tests with Playwright in a virtual screen (using xvfb-run)
 	@echo "🎭 Running Headed Tests in Virtual Screen..."
 # 	cd backend && xvfb-run --auto-servernum --server-args="-screen 1 1280x960x24" uv run pytest tests/e2e/step_defs/ --headed --slowmo 1500	
