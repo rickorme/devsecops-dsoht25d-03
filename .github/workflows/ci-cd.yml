@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: '30 1 * * 0'
 
+permissions:
+  actions: read
+  contents: read
+  security-events: read
+
 jobs:
   ci:
     # Dynamically name the job based on the matrix target
@@ -106,7 +111,7 @@ jobs:
           make lint-backend
           make security-backend
 
-      - name: 🐍 Backend CI specific step > Run Unit Tests
+      - name: 🐍 Backend CI specific step > Run Unit and Integration Tests
         if: matrix.target == 'backend'
         # env:
           # DATABASE_URL: postgresql+asyncpg://user:password@127.0.0.1:5432/app_db
@@ -198,3 +203,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.target == 'backend' && 'python' || 'javascript-typescript' }}"
+          upload: ${{ github.repository_owner == github.actor }}

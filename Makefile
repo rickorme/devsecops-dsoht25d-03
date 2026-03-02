@@ -50,7 +50,7 @@ install-playwright-deps-only: ## Install only Playwright system dependencies (wi
 
 test-backend: ## Run backend unit and integration tests (pytest)
 	@echo "🧪 Running Backend Tests..."
-	cd backend && uv run pytest tests/integration/
+	cd backend && uv run pytest tests/unit/ -v && uv run pytest tests/integration/ -v
 
 lint-backend: ## Run backend linters (Ruff for formatting and linting, Mypy for type checking)
 	@echo "🔍 Running Linters (Ruff + Mypy)..."

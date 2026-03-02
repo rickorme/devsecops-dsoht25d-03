@@ -105,13 +105,14 @@ def _(browser: Browser, multi_sessions, username, session_name):
 @when('my session is manually expired in the backend')
 def _(page: Page):
     """
-    Simulates a 24-hour expiration.
-    Instead of complex DB time-travel, clearing the Playwright context cookies
-    perfectly simulates an expired or missing session token to the React frontend.
+    Simulates an expired session for testing.
+
+    Clears the browser's cookies and frontend storage so the React app
+    treats the session as missing or expired, triggering the normal
+    authentication flow without modifying the backend.
     """
-    page.context.clear_cookies()
-    # Execute raw JavaScript in the browser to clear frontend storage
     page.evaluate("window.localStorage.clear(); window.sessionStorage.clear();")
+    page.context.clear_cookies()
 
 @when('I refresh the page')
 def _(page: Page):
