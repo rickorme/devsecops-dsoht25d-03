@@ -135,12 +135,37 @@ make test-e2e
 ```
 
 
-### Frontend Tech Stack
+## Frontend Tech Stack
 
 - **React 19** with Vite
 - **React Router DOM** v6
 - **Axios** for HTTP requests
 - **Vitest** + Testing Library (unit/integration)
+
+## Backend Technology Stack
+
+- **Dependency Manager:** uv (replaces pip/poetry)
+- **Framework:** FastAPI 
+- **Server:** Uvicorn
+- **Authentication:** PyJWT (Modern replacement for python-jose)
+- **Password Hashing:** pwdlib + argon2 (Modern replacement for passlib)
+- **Validation:** Pydantic 
+- **Database:** SQLAlchemy, PostgreSQL, Alembic for migrations
+- **Testing:** pytest
+- **Code Quality:** Ruff (replaces black/flake8/isort) + mypy
+- **Security:** bandit
+
+
+## 🎯 Example Development Workflow using GitHub Flow
+
+1. **Create feature branch** from main
+2. **Implement feature** with tests, run tests
+3. **Check code quality:** e.g. make lint-backend
+4. **Security scan:** e.g. make security-backend
+5. **Commit and push** to feature branch
+6. **Create Pull Request** (CI will run automatically)
+7. **Code review** by team
+8. **Merge** to main
 
 
 ## 🧪 Testing Architecture

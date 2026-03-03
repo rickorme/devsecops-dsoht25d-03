@@ -113,7 +113,7 @@ make lint-backend
 - **Database:** SQLAlchemy (SQLite for dev, PostgreSQL for prod)
 - **Testing:** pytest
 - **Code Quality:** Ruff (replaces black/flake8/isort) + mypy
-- **Security:** bandit, safety
+- **Security:** bandit
 
 ## 📖 Next Steps
 
