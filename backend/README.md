@@ -8,6 +8,7 @@ This is the Python backend environment setup for a social application project fo
 
 ## 🏗️ Project Structure
 
+
 ```
 backend/
 ├── .venv/                    # Virtual environment (managed by uv)
