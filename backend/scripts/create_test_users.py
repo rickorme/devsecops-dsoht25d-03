@@ -28,7 +28,7 @@ async def create_test_data() -> None:
                 username="testuser",
                 email=email,
                 full_name="Test User",
-                hashed_password=get_password_hash("password123"),
+                hashed_password=get_password_hash("Password123!"),
                 is_active=True,
             )
             session.add(new_user)
@@ -85,16 +85,16 @@ async def create_test_data() -> None:
             session.add(public_post)
 
             # 4. Create a second test user with memberships
-            email2 = "test2@example.com"
+            email2 = "john@test.com"
             result2 = await session.execute(select(User).where(User.email == email2))
             user2 = result2.scalar_one_or_none()
 
             if not user2:
                 user2 = User(
-                    username="testuser2",
+                    username="john_doe",
                     email=email2,
-                    full_name="Test User 2",
-                    hashed_password=get_password_hash("password123"),
+                    full_name="John Doe",
+                    hashed_password=get_password_hash("SecurePass123!"),
                     is_active=True,
                 )
                 session.add(user2)
