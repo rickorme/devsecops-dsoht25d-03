@@ -31,6 +31,8 @@ class PostResponse(PostBase):
     author_name: str | None = Field(None,
                                     description="Username of author")
     circle_id: int | None
+    circle_name: str | None = Field(None,
+                                   description="Name of the circle if post is in a circle")
     created_at: datetime
     updated_at: datetime | None
 
