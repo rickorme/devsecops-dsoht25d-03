@@ -229,19 +229,19 @@ help: ## Display this help message
 	@echo "╚══════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "📦 INSTALLATION:"
-	@grep -E '^install[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^install[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "🗄️  DATABASE:"
-	@grep -E '^(db|migrate|seed)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^(db|migrate|seed)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "🧪 TESTING & QUALITY:"
-	@grep -E '^(test|lint|security|format|audit)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^(test|lint|security|format|audit)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "🚀 RUN APPLICATION:"
-	@grep -E '^run[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^run[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "🔧 ENVIRONMENT:"
-	@grep -E '^(setup|secrets)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^(setup|secrets)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "🧹 MAINTENANCE:"
-	@grep -E '^(clean|help)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+	@grep -h -E '^(clean|help)[a-zA-Z_-]*:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "   \033[36m%-25s\033[0m %s\n", $$1, $$2}'
