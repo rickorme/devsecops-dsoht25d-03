@@ -93,9 +93,12 @@ jobs:
           touch backend/.env
           
           # Database connection strings
-          echo "DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env
-          echo "TEST_DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env          
-          
+          # echo "DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env
+          # echo "TEST_DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env          
+
+          echo "DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/testdb" >> backend/.env
+          echo "TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/testdb" >> backend/.env
+
           # Install backend dependencies and run migrations
           make install-backend
 
