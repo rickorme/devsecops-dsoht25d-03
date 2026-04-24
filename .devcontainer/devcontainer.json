@@ -4,6 +4,9 @@
   "service": "app",
   "workspaceFolder": "/workspace",
 
+  // 2. Connect as the non-root user
+  "remoteUser": "vscode",
+
   // 1. FORWARD PORTS: Automates the "Ports" tab
   "forwardPorts": [6080, 3000, 8000],
 
@@ -32,10 +35,19 @@
       "configureZshAsDefaultShell": true
     },
 
-    // 1. Adds a lightweight desktop environment + VNC Server
+    // 2. Adds a lightweight desktop environment + VNC Server
     "ghcr.io/devcontainers/features/desktop-lite:1": {
       "version": "latest"
+    },
+
+    // 3. This provides Docker CLI and Docker Compose inside the container, allowing you to run Docker commands from within the dev container. 
+    // It mounts the host's Docker socket, so you can manage your host's Docker containers directly.
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
     }
+
   },
 
   "customizations": {
@@ -62,7 +74,10 @@
 
   // 1. Install dependencies immediately after the container builds
   "postCreateCommand": "make install",
-
-  // 2. Connect as the non-root user
-  "remoteUser": "vscode"
+  
+  // 2. Fix permissions for Docker socket to allow non-root user to run Docker commands
+  // This is necessary because the "docker-outside-of-docker" feature mounts the host's Docker socket, which is owned by root. 
+  // By changing the permissions, we allow the "vscode" user to access it without needing sudo for every command.
+  // Note: This is a simple solution for development purposes, but be cautious with permissions in production environments.
+  "postStartCommand": "sudo chmod 666 /var/run/docker.sock"
 }

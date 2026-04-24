@@ -40,6 +40,19 @@ services:
       POSTGRES_DB: test_db
     ports:
       - "5434:5432" # Exposed on a different port so it doesn't clash with dev DB      
-
+  
+  grype:
+      image: anchore/grype:latest
+      profiles:
+        - tools # This hides it from normal startup
+      volumes:
+        # This is the magic line. It lets the container talk to your host's Docker engine
+        - /var/run/docker.sock:/var/run/docker.sock
+        # Mount a persistent named volume to that exact directory
+        - grype_db_cache:/.cache/grype
+        # Optional: Mount your codebase so Grype can also scan raw files if needed
+        - ./:/workspace
+        
 volumes:
   postgres-data:
+  grype_db_cache:
