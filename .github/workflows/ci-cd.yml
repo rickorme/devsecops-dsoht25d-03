@@ -154,7 +154,7 @@ jobs:
       - name: 🛡️ Scan FastAPI Backend Image with Grype
         if: matrix.target == 'backend'
         id: grype-scan
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v7
         with:
           image: my-fastapi-prod:${{ github.sha }}
           fail-build: true               # Block the PR if vulnerabilities are found
@@ -163,7 +163,7 @@ jobs:
 
       - name: 📊 Upload FastAPI Backend Grype Report
         if: matrix.target == 'backend' && always() # Upload the report even if the scan fails!
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.grype-scan.outputs.sarif }}
           category: container-scan
