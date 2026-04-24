@@ -13,10 +13,19 @@ services:
     command: sleep infinity
     # Connect to the same network as the database
     network_mode: service:db
+    depends_on:
+      db:
+        condition: service_healthy
 
   # The Development Database Container
   db:
-    image: postgres:16-alpine
+    image: dhi.io/postgres:16
+    healthcheck:
+      # Hardened images usually still have pg_isready
+      test: ["CMD-SHELL", "pg_isready -U user -d app_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -29,7 +38,7 @@ services:
 
   # The Test Database Container
   test_db:
-    image: postgres:16-alpine
+    image: dhi.io/postgres:16
     restart: unless-stopped
     # Use tmpfs to keep the DB in memory for blazing fast tests!
     tmpfs:
