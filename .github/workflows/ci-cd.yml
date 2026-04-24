@@ -6,9 +6,9 @@ on:
   
   # Automatic triggers
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   # Weekly schedule: every Sunday at 1:30 AM
   schedule:
     - cron: '30 1 * * 0'
@@ -23,6 +23,8 @@ permissions:
   actions: read          # Read workflow files
   contents: read         # Read repository contents
   security-events: write  # Write security results (CodeQL, etc.) - FIXED!
+  packages: write
+
 
 jobs:
   ci:
@@ -43,7 +45,11 @@ jobs:
     # ----------------------------------------------------------------------------
     services:
       db:
-        image: postgres:15
+        image: dhi.io/postgres:16         
+        # Docker credentials required to pull hardened image
+        credentials:
+          username: ${{ secrets.DHI_USERNAME }}
+          password: ${{ secrets.DHI_PASSWORD }}
         env:
           POSTGRES_SERVER: 127.0.0.1
           # POSTGRES_USER: ${{ secrets.DB_USER }}
@@ -67,6 +73,14 @@ jobs:
       
       - name: Checkout code
         uses: actions/checkout@v4
+        
+        # Authenticate the runner's Docker daemon
+      - name: Log in to DHI Registry
+        uses: docker/login-action@v3
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DHI_USERNAME }}
+          password: ${{ secrets.DHI_PASSWORD }}
 
       # ----------------------------------------------------------------------------
       # CODEQL INITIALIZATION
@@ -128,6 +142,76 @@ jobs:
       - name: 🐍 Backend - Run Unit and Integration Tests
         if: matrix.target == 'backend'
         run: make test-backend
+
+      # ----------------------------------------------------------------------------
+      # CONTAINER SECURITY SCANNING (Phase 3 & 4)
+      # ----------------------------------------------------------------------------
+      - name: 🐳 Build Production Image
+        if: matrix.target == 'backend'
+        # We tag the image with the unique GitHub commit hash for traceability
+        run: docker build -t my-fastapi-prod:${{ github.sha }} -f backend/Dockerfile.prod backend/
+
+      - name: 🛡️ Scan FastAPI Backend Image with Grype
+        if: matrix.target == 'backend'
+        id: grype-scan
+        uses: anchore/scan-action@v3
+        with:
+          image: my-fastapi-prod:${{ github.sha }}
+          fail-build: true               # Block the PR if vulnerabilities are found
+          severity-cutoff: critical      # Only fail on CRITICAL
+          only-fixed: true               # Ignore vulnerabilities that don't have a patch yet
+
+      - name: 📊 Upload FastAPI Backend Grype Report
+        if: matrix.target == 'backend' && always() # Upload the report even if the scan fails!
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+          category: container-scan
+          
+      - name: 🛡️ Scan DB Image with Grype
+        if: matrix.target == 'backend'
+        id: grype-db
+        uses: anchore/scan-action@v3
+        with:
+          # Pointing directly to your Single Source of Truth
+          image: dhi.io/postgres:16
+          fail-build: true
+          severity-cutoff: critical
+          only-fixed: true
+
+      - name: 📊 Upload DB Grype Report
+        if: matrix.target == 'backend' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.grype-db.outputs.sarif }}
+          category: container-scan-db
+
+      # ----------------------------------------------------------------------------
+      # ARTIFACT REGISTRY PUSH (Only on Main Branch!)
+      # ----------------------------------------------------------------------------
+      - name: 🔐 Log in to GitHub Container Registry
+        # Only run if we are on the backend job AND merging/pushing to the main branch
+        if: matrix.target == 'backend' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub!
+
+      - name: 🚀 Push Secure Backend Image to GHCR
+        if: matrix.target == 'backend' && github.ref == 'refs/heads/main'
+        run: |
+          # Convert the repository owner name to lowercase (Docker requires lowercase)
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
+          # Tag with the specific commit hash (for exact rollbacks)
+          docker tag my-fastapi-prod:${{ github.sha }} ghcr.io/$REPO_OWNER/backend:${{ github.sha }}
+          # Tag as 'latest' (for easy downloading)
+          docker tag my-fastapi-prod:${{ github.sha }} ghcr.io/$REPO_OWNER/backend:latest
+          
+          # Push both tags to the registry
+          docker push ghcr.io/$REPO_OWNER/backend:${{ github.sha }}
+          docker push ghcr.io/$REPO_OWNER/backend:latest
 
       # ============================================================================
       # FRONTEND-SPECIFIC STEPS
@@ -205,6 +289,52 @@ jobs:
           
           # Run E2E tests
           make test-e2e
+      
+      # ----------------------------------------------------------------------------
+      # CONTAINER SECURITY SCANNING (Phase 3 & 4)
+      # ----------------------------------------------------------------------------
+      - name: 🐳 Build Production Frontend Image
+        if: matrix.target == 'frontend'
+        run: docker build -t my-react-prod:${{ github.sha }} -f frontend/Dockerfile.prod frontend/
+
+      - name: 🛡️ Scan Frontend Image with Grype
+        if: matrix.target == 'frontend'
+        id: grype-frontend
+        uses: anchore/scan-action@v3
+        with:
+          image: my-react-prod:${{ github.sha }}
+          fail-build: true
+          severity-cutoff: critical
+          only-fixed: true
+
+      - name: 📊 Upload Frontend Grype Report
+        if: matrix.target == 'frontend' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.grype-frontend.outputs.sarif }}
+          category: container-scan-frontend
+
+      # ----------------------------------------------------------------------------
+      # ARTIFACT REGISTRY PUSH (Frontend)
+      # ----------------------------------------------------------------------------
+      - name: 🔐 Log in to GitHub Container Registry
+        if: matrix.target == 'frontend' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🚀 Push Secure Frontend Image to GHCR
+        if: matrix.target == 'frontend' && github.ref == 'refs/heads/main'
+        run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
+          docker tag my-react-prod:${{ github.sha }} ghcr.io/$REPO_OWNER/frontend:${{ github.sha }}
+          docker tag my-react-prod:${{ github.sha }} ghcr.io/$REPO_OWNER/frontend:latest
+          
+          docker push ghcr.io/$REPO_OWNER/frontend:${{ github.sha }}
+          docker push ghcr.io/$REPO_OWNER/frontend:latest
 
       # ============================================================================
       # CLEANUP (runs for both matrix targets)

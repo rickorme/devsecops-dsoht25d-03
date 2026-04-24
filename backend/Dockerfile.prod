@@ -1,0 +1,43 @@
+# ============================================================================
+# STAGE 1: THE BUILDER (Has OS tools, compilers, and uv)
+# ============================================================================
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /app
+
+# 1. Create a virtual environment first
+RUN uv venv /app/.venv
+
+# 2. Copy lockfiles and install dependencies into the .venv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+# 3. Copy application code and install it
+COPY . .
+RUN uv sync --frozen --no-dev
+
+# ============================================================================
+# STAGE 2: THE HARDENED RUNTIME (No shell, no root, no apt)
+# ============================================================================
+# Pinned to a specific minor version for deterministic, reproducible builds
+FROM dhi.io/python:3.12
+
+WORKDIR /app
+
+# 1. Copy the built environment and app code from Stage 1
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
+
+# 2. Set the PATH so Linux knows where to find Python and Uvicorn
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+# 3. Chainguard runs as 'nonroot' automatically, so we don't need to create a user!
+EXPOSE 8000
+
+# 4. We cannot use 'uv run' here because uv doesn't exist in this image.
+# We call uvicorn directly from the virtual environment we copied over.
+ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
