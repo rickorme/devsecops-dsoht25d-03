@@ -1,6 +1,6 @@
 # Social App - DevSecOps Project
 
-## Project Overview
+# Project Overview
 
 A modern social web application built with React, FastAPI, and DevSecOps practices. This project focuses on continuous integration, automated testing, and secure deployment.
 
@@ -8,7 +8,13 @@ A modern social web application built with React, FastAPI, and DevSecOps practic
 
 This project is built using **Visual Studio Code Dev Containers**. This ensures that everyone working on the project uses the exact same OS, tools, and dependencies (Python, Node.js, Playwright browsers, etc.) without needing to install them manually on their local machine.
 
-### Prerequisites
+
+# 🚀 Quick Start: Dev Container
+
+This project is designed to run in a VS Code Dev Container. This ensures you have Python, Node.js, Postgres, and all tools (including VS Code extensions) pre-installed. 
+
+
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -19,11 +25,32 @@ Before you begin, ensure you have the following installed:
 2.  [**Visual Studio Code**](https://code.visualstudio.com/)
 3.  **Dev Containers Extension** for VS Code (id: `ms-vscode-remote.remote-containers`)
 
-## 🚀 Quick Start: Dev Container
+### Docker Account
 
-This project is designed to run in a VS Code Dev Container. This ensures you have Python, Node.js, Postgres, and all tools (including VS Code extensions) pre-installed.
+This project utilises Docker Hardened Images and therefore requires that you have a docker.com account, and you are logged in to the Docker Hardened Images Registry (dhi.io) via VS Code's seamless, highly secure credential forwarding system.
 
-1. Open Docker Desktop (or Rancher Desktop)
+### Login to Docker Hardened Images Registry
+
+1. Ensure Docker Desktop (or Docker Engine) is running.
+
+2. Authenticate with the secure image registry by running this in your host terminal:
+```docker login dhi.io```
+
+Your host machine securely encrypts and stores that login token as follows:
+
+- On Mac: Docker Desktop automatically intercepts the login token and saves it securely inside the macOS Keychain (the same place Apple stores WiFi passwords).
+
+- On Windows: Docker Desktop saves it securely inside the Windows Credential Manager. 
+
+- On Linux: in your system's credential helper (or ~/.docker/config.json).
+
+That's it. When you open VS Code and tell it to build your Dev Container, VS Code automatically acts as a bridge. When Docker tries to pull the hardened Postgres image, it will securely ask your host machine for permission, use the host's token to download the image, and then build the container. The plaintext password never touches your devcontainer.json and never enters the container's environment variables.
+
+## Instructions
+
+**!! Please check that all pre-requisites above have been satisfied !!**
+
+1. Open Docker Desktop or Rancher Desktop (NOTE: Not necessary on Linux if Docker CLI and Docker Compose are installed)
 2. Open the project root in VS Code.
 3. When prompted, click "Reopen in Container". 
 4. Wait for the build to finish. The environment will automatically run make install to set up dependencies.
