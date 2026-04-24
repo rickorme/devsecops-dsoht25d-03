@@ -146,13 +146,15 @@ test-e2e-headed: ## Run E2E tests with visible browser (for local debugging)
 
 ## Container security scanning (Grype)
 scan-app-image: ## Scan the application image for vulnerabilities using Grype
+	@echo "🔍 Tagging the latest dev image..."
+	docker build -t my-app-dev:local -f .devcontainer/Dockerfile .
 	@echo "🛡️ Scanning application container with Grype..."
-	cd .devcontainer && docker compose run --rm grype vsc-devsecops-dsoht25d-03-fdf4b499c1703479911d6706789e7fe6ea9c2de276f0b3796b39279443b9fe54-uid --only-fixed --fail-on critical --output table
+	cd .devcontainer && docker compose run --rm grype docker:my-app-dev:local --only-fixed --fail-on critical --output table
 	@echo "✅ Container scan complete"
 
 scan-db-image: ## Scan the database image for vulnerabilities using Grype
 	@echo "🛡️ Scanning database container with Grype..."
-	cd .devcontainer && docker compose run --rm grype postgres:16-alpine --only-fixed --fail-on critical --output table
+	cd .devcontainer && docker compose run --rm grype dhi.io/postgres:16 --only-fixed --fail-on critical --output table
 	@echo "✅ Container scan complete"
 
 # ============================================================================
