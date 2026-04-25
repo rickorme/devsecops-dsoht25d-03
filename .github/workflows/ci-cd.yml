@@ -52,9 +52,6 @@ jobs:
           password: ${{ secrets.DHI_PASSWORD }}
         env:
           POSTGRES_SERVER: 127.0.0.1
-          # POSTGRES_USER: ${{ secrets.DB_USER }}
-          # POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          # POSTGRES_DB: ${{ secrets.DB_NAME }}
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: testdb
@@ -110,9 +107,6 @@ jobs:
           touch backend/.env
           
           # Database connection strings
-          # echo "DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env
-          # echo "TEST_DATABASE_URL=postgresql+asyncpg://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@127.0.0.1:5432/${{ secrets.DB_NAME }}" >> backend/.env          
-
           echo "DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/testdb" >> backend/.env
           echo "TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/testdb" >> backend/.env
 
