@@ -10,8 +10,15 @@ from app.core.config import settings
 
 # Create an asynchronous engine to connect to the PostgreSQL database
 # The DATABASE_URL is loaded from settings, which defaults to the local dev container DB
-# or can be overridden by an environment variable (e.g., for Neon).
-engine = create_async_engine(settings.DATABASE_URL, echo=True)
+# or can be overridden by an environment variable (e.g., for Railway).
+# We want to make sure the URL is in the correct format for asyncpg, which SQLAlchemy uses for async PostgreSQL connections. 
+# If the URL starts with "postgresql://", we replace it with "postgresql+asyncpg://".
+# This is necessary because SQLAlchemy needs the "asyncpg" driver specified in the URL to know to use it for asynchronous operations. 
+db_url = str(settings.DATABASE_URL)
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+engine = create_async_engine(db_url, echo=True)
 
 # Create a sessionmaker for asynchronous sessions
 # expire_on_commit=False prevents objects from being expired after commit,
