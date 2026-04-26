@@ -43,4 +43,4 @@ EXPOSE 8000
 # so we call uvicorn directly from the virtual environment we copied over.
 # Instead of calling /app/.venv/bin/uvicorn (which has a broken shebang),
 # we call 'python' (which we know is healthy) and tell it to run the uvicorn module.
-ENTRYPOINT ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
