@@ -36,9 +36,11 @@ COPY --from=builder /app /app
 ENV PYTHONPATH="/app/.venv/lib/python3.12/site-packages:/app"
 ENV PYTHONUNBUFFERED=1
 
-# 3. Chainguard runs as 'nonroot' automatically, so we don't need to create a user!
 EXPOSE 8000
 
-# 4. We cannot use 'uv run' here because uv doesn't exist in this image.
-# We call uvicorn directly from the virtual environment we copied over.
-ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 3. USE THE MODULE FLAG (-m)
+# We cannot use 'uv run' here because uv doesn't exist in this image,
+# so we call uvicorn directly from the virtual environment we copied over.
+# Instead of calling /app/.venv/bin/uvicorn (which has a broken shebang),
+# we call 'python' (which we know is healthy) and tell it to run the uvicorn module.
+ENTRYPOINT ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
