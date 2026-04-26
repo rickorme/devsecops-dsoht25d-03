@@ -1,0 +1,28 @@
+# backend/.dockerignore
+
+
+# 1. Secrets and Environment Variables (Security)
+.env
+.env.*
+.venv
+
+# 4. Tests and Testing Artifacts (Performance & cleanliness)
+tests/
+__pycache__
+.pytest_cache
+.coverage
+htmlcov/
+.mypy_cache
+.ruff_cache
+
+# 5. OS and Version Control (Security & Cleanliness)
+.git/
+.DS_Store
+Thumbs.db
+
+# 6. Docker Files (Cleanliness)
+Dockerfile*
+.dockerignore
+
+# 7. Develpmoent Files (Cleanliness)
+scripts/

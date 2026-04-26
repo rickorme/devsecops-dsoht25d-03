@@ -45,5 +45,5 @@ RUN if id -u $USER_UID >/dev/null 2>&1; then \
     && chown -R $USERNAME:$USERNAME /workspace
 
 # Set default user
-USER $USERNAME
+# USER $USERNAME
 WORKDIR /workspace

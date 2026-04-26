@@ -143,6 +143,20 @@ test-e2e-headed: ## Run E2E tests with visible browser (for local debugging)
 	cd backend && DISPLAY=:1 uv run pytest tests/e2e/step_defs --headed --slowmo 1500 -v
 	@echo "✅ Headed E2E tests complete"
 
+
+## Container security scanning (Grype)
+scan-app-image: ## Scan the application image for vulnerabilities using Grype
+	@echo "🔍 Tagging the latest dev image..."
+	docker build -t my-app-dev:local -f .devcontainer/Dockerfile .
+	@echo "🛡️ Scanning application container with Grype..."
+	cd .devcontainer && docker compose run --rm grype docker:my-app-dev:local --only-fixed --fail-on critical --output table
+	@echo "✅ Container scan complete"
+
+scan-db-image: ## Scan the database image for vulnerabilities using Grype
+	@echo "🛡️ Scanning database container with Grype..."
+	cd .devcontainer && docker compose run --rm grype dhi.io/postgres:16 --only-fixed --fail-on critical --output table
+	@echo "✅ Container scan complete"
+
 # ============================================================================
 # APPLICATION EXECUTION
 # ============================================================================
