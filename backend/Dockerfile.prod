@@ -31,8 +31,9 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app /app
 
-# 2. Set the PATH so Linux knows where to find Python and Uvicorn
-ENV PATH="/app/.venv/bin:$PATH"
+# 2. Set the PATH so Linux knows where to find Python and Uvicorn# 
+# (Bypass the broken symlink by pointing Python directly to the packages)
+ENV PYTHONPATH="/app/.venv/lib/python3.12/site-packages:/app"
 ENV PYTHONUNBUFFERED=1
 
 # 3. Chainguard runs as 'nonroot' automatically, so we don't need to create a user!
