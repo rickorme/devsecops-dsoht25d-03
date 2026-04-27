@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         env_file=".env", env_ignore_empty=True, extra="ignore"
     )
 
+    # Environment flag (defaults to development for local use)
+    ENVIRONMENT: str = "development"
+
     # API Configuration
     PROJECT_NAME: str = "DevSecOps Social App API"
     VERSION: str = "0.1.0"
