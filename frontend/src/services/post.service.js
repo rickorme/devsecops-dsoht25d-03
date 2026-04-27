@@ -30,7 +30,7 @@ export const postService = {
   // Create post
   createPost: async (postData) => {
     try {
-      const response = await api.post(BASE_URL, postData);
+      const response = await api.post(`${BASE_URL}/`, postData);
       return response.data;
     } catch (error) {
       console.error('Error creating post:', error);
