@@ -29,7 +29,7 @@ export const circleService = {
   // Create a new circle
   createCircle: async (circleData) => {
     try {
-      const response = await api.post(BASE_URL, circleData);
+      const response = await api.post(`${BASE_URL}/`, circleData);
       return response.data;
     } catch (error) {
       console.error('Error creating circle:', error);

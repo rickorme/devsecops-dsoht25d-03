@@ -45,6 +45,7 @@ htmlcov/
 .tox/
 coverage.xml
 *.cover
+test-results/
 
 # Database
 *.db

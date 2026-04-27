@@ -8,7 +8,26 @@ vi.mock('../../src/config', () => ({
   API_BASE_URL: 'http://mocked-for-tests.local'
 }));
 
-vi.mock('axios');
+// THE FIX: Create a complete mock instance
+vi.mock('axios', () => {
+  const mockAxiosInstance = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    interceptors: {
+      request: { use: vi.fn(), eject: vi.fn() },
+      response: { use: vi.fn(), eject: vi.fn() },
+    },
+  };
+  
+  // Crucial step: Make axios.create() return the exact same instance!
+  mockAxiosInstance.create = vi.fn(() => mockAxiosInstance);
+
+  return {
+    default: mockAxiosInstance
+  };
+});
 
 describe('Auth Service', () => {
   beforeEach(() => {
