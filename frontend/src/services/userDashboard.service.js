@@ -1,5 +1,6 @@
 // frontend/src/services/userDashboard.service.js
-import axios from 'axios';
+// import axios from 'axios';
+import api from './api';
 import { API_BASE_URL } from '../config/index';
 import { circleService } from './circle.service';
 import { postService } from './post.service';
@@ -10,7 +11,7 @@ export const userDashboardService = {
       // 3 parallel API calls to fetch user info, circles with badges, and recent feed posts
       const [userResponse, circlesResponse, feedResponse] = await Promise.all([
         // 1. User info (exists)
-        axios.get(`${API_BASE_URL}/auth/me`, {
+        api.get(`${API_BASE_URL}/auth/me`, {
           withCredentials: true
         }),
         

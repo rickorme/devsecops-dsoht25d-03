@@ -1,5 +1,6 @@
 // frontend/src/services/auth.service.js
-import axios from 'axios';
+// import axios from 'axios';
+import api from './api';
 import { API_BASE_URL } from '../config/index';
   
 // Service for handling authentication-related API calls
@@ -10,7 +11,7 @@ export const authService = {
    */
   async login({username, password}) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+      const response = await api.post(`${API_BASE_URL}/auth/login`, {
         username,
         password
       }, {
@@ -29,7 +30,7 @@ export const authService = {
    */
   async register( {username, password, full_name = '', email = ''} ) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, {
+      const response = await api.post(`${API_BASE_URL}/auth/register`, {
         username,
         password,
         full_name,
@@ -48,7 +49,7 @@ export const authService = {
    */
   async logout() {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/logout`, {}, {
+      const response = await api.post(`${API_BASE_URL}/auth/logout`, {}, {
         withCredentials: true
       });
       return response.data;
@@ -64,7 +65,7 @@ export const authService = {
    */
   async requestPasswordReset({ email }) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/reset-password`, {
+      const response = await api.post(`${API_BASE_URL}/auth/reset-password`, {
         email
       });
       return response.data;
@@ -80,7 +81,7 @@ export const authService = {
    */
   async resetPassword({ token, new_password }) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/reset-password/confirm`, {
+      const response = await api.post(`${API_BASE_URL}/auth/reset-password/confirm`, {
         token,        // tocken for password reset
         new_password
       });
@@ -97,7 +98,7 @@ export const authService = {
    */
   async verifyEmail({ token }) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/verify-email`, {
+      const response = await api.post(`${API_BASE_URL}/auth/verify-email`, {
         token        // tocken for email verification
       });
       return response.data;
@@ -113,7 +114,7 @@ export const authService = {
    */
   async resendVerificationEmail({ email }) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/resend-verification`, {
+      const response = await api.post(`${API_BASE_URL}/auth/resend-verification`, {
         email
       });
       return response.data;
@@ -132,7 +133,7 @@ export const authService = {
   async checkAuth() {
     try {
       // This will return user info if authenticated, or throw 401 if not
-      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+      const response = await api.get(`${API_BASE_URL}/auth/me`, {
         withCredentials: true  // Important for sending cookies with the request
       });
       
