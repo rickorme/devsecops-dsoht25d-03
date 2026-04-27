@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth.js';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import './RegisterPage.css';
 
 function RegisterPage() {
@@ -174,9 +175,10 @@ if (fullName && (fullName.length < 2 || fullName.length > 100)) {
         </form>
         
         <div className="register-links">
-          <p>Already have an account? <a href="/login">Login here</a></p>
+          {/* <p>Already have an account? <a href="/login">Login here</a></p> */}
+          <p>Already have an account? <Link to="/login">Login here</Link></p>
           <p className="terms-note">
-            By registering, you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>
+            By registering, you agree to our <Link to="/terms">Terms of Service</Link> and <Link to="/privacy">Privacy Policy</Link>
           </p>
         </div>
       </div>
