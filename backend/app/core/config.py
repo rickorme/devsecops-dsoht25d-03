@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Environment flag (defaults to development for local use)
     ENVIRONMENT: str = "development"
 
+    # Cookie Domain for production cross-origin auth
+    COOKIE_DOMAIN: str | None = None
+
     # API Configuration
     PROJECT_NAME: str = "DevSecOps Social App API"
     VERSION: str = "0.1.0"
