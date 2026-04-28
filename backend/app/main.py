@@ -2,12 +2,13 @@
 Main FastAPI application (ASYNC with PostgreSQL)
 Initializes the API with authentication endpoints and CORS for frontend
 """
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.endpoints import auth, circle_members, circles, posts, users
 from app.core.config import settings
@@ -41,6 +42,31 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+
+        response = await call_next(request)
+
+        # Only apply strict security headers in production to avoid breaking local dev
+        if settings.ENVIRONMENT == "production":
+            # HSTS: Force browsers to use HTTPS for 1 year
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+            # Bonus AppSec Headers
+            response.headers["X-Content-Type-Options"] = "nosniff" # Prevents MIME-sniffing
+            response.headers["X-Frame-Options"] = "DENY"           # Prevents Clickjacking
+            response.headers["X-XSS-Protection"] = "1; mode=block" # Legacy XSS protection
+
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # Include all routers at /api/v1 (versioned API)
 # Frontend expects: http://localhost:8000/api/v1/auth/login
