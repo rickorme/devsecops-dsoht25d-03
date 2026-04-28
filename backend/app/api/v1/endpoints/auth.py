@@ -16,6 +16,7 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
 from app.core.db import get_db
@@ -262,7 +263,7 @@ async def get_current_user_from_session(
 
     # Find user
     user_result = await db.execute(
-        select(User).where(User.id == session.user_id)
+        select(User).options(joinedload(User.role)).where(User.id == session.user_id)
     )
     user = user_result.scalar_one_or_none()
 
@@ -364,4 +365,22 @@ async def logout(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Logout failed due to server error"
         ) from e
+
+
+class RequireRole:
+    """
+    RBAC Dependency Factory
+    Usage: @router.get("/admin", dependencies=[Depends(RequireRole(["admin", "superadmin"]))])
+    """
+    def __init__(self, allowed_roles: list[str]):
+        self.allowed_roles = allowed_roles
+
+    async def __call__(self, current_user: User = Depends(get_current_user_from_session)) -> User:
+        # Check if the user's role name exists in the allowed list
+        if not current_user.role or current_user.role.name not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient privileges to access this resource"
+            )
+        return current_user
 

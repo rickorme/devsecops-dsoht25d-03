@@ -23,6 +23,9 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # One-to-many relationship back to users
+    users: Mapped[list["User"]] = relationship(back_populates="role")
+
 
 class User(Base):
     """
@@ -50,6 +53,11 @@ class User(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
+
+    # Foreign key and relationship to Role
+    # We use server_default="1" so if there are already users in the DB, Alembic won't crash when migrating
+    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), server_default="1", nullable=False)
+    role: Mapped["Role"] = relationship(back_populates="users")
 
     # Relationships
     owned_circles: Mapped[list["Circle"]] = relationship(back_populates="owner",
