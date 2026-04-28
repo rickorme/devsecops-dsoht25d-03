@@ -168,7 +168,8 @@ def create_test_user_synchronous():
                 new_user = User(
                     username=username,
                     email=f"{username.lower()}@example.com",
-                    hashed_password=hashed_pw
+                    hashed_password=hashed_pw,
+                    role_id=1
                 )
                 session.add(new_user)
                 await session.commit()
@@ -194,7 +195,8 @@ async def create_test_user(
             email=f"{username}@test.com",
             hashed_password=hashed_pw,
             full_name=f"Test User {username}",
-            is_active=True
+            is_active=True,
+            role_id=1  # 'user' role
         )
         db_session.add(new_user)
         await db_session.commit()
