@@ -30,6 +30,7 @@ async def create_test_data() -> None:
                 full_name="Test User",
                 hashed_password=get_password_hash("Password123!"),
                 is_active=True,
+                role_id=1  # 'user' role has ID 1 in the Roles table
             )
             session.add(new_user)
             await session.flush()  # Get user ID without commit
@@ -96,6 +97,7 @@ async def create_test_data() -> None:
                     full_name="John Doe",
                     hashed_password=get_password_hash("SecurePass123!"),
                     is_active=True,
+                    role_id=1  # 'user' role
                 )
                 session.add(user2)
                 await session.flush()
