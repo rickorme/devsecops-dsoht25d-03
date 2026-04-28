@@ -160,6 +160,9 @@ async def login(
                 detail=error_detail
             )
 
+        # TELL MYPY: If we reach here, we guarantee 'user' is not None.
+        assert user is not None
+
         # 4. The Happy Path Execution
         session_token = secrets.token_urlsafe(32)
         now = datetime.now()
