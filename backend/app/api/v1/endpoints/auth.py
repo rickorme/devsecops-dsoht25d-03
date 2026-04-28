@@ -9,11 +9,9 @@ Matches frontend expectations:
 - Username-based authentication (not email!)
 """
 
-import logging
 import secrets
-import traceback
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
@@ -21,78 +19,98 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.logger import logger
 from app.core.security import get_password_hash, verify_password
 from app.db.models import User, UserSession
 from app.schemas.auth import SessionResponse, UserCreate, UserLogin, UserResponse
 
-logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)) -> SessionResponse:
-    """
-    Register a new user (ASYNC)
+async def register(
+    user_data: UserCreate,
+    request: Request,  # Added so we can extract source.ip
+    db: AsyncSession = Depends(get_db)
+) -> SessionResponse:
 
-    Frontend sends POST request to /api/auth/register with:
-    ```json
-    {
-        "username": "johndoe",
-        "email": "user@example.com",
-        "password": "SecurePass123!",
-        "full_name": "John Doe"  # Optional
-    }
-    ```
+    # Extract client IP for ECS compliance
+    client_ip = request.client.host if request.client else "unknown"
 
-    Returns:
-    - 201: User created successfully
-    - 400: Username already taken
-    - 400: Email already taken
-    """
-    # Check if username already exists
-    username = await db.execute(select(User).where(User.username == user_data.username))
-    db_username = username.scalar_one_or_none()
+    # 1. Initialize ECS Context for the entire request
+    # These fields will be automatically attached to every log in this function
+    log = logger.bind(**{
+        "event.category": ["iam", "authentication"],
+        "event.action": "user_registration",
+        "user.name": user_data.username,
+        "user.email": user_data.email,
+        "source.ip": client_ip
+    })
 
-    if db_username:
+    error_detail = None
+
+    # 2. Perform all validations (The Guard Clauses)
+    username_exists = await db.execute(select(User).where(User.username == user_data.username))
+    if username_exists.scalar_one_or_none():
+        error_detail = "Username already taken"
+    else:
+        email_exists = await db.execute(select(User).where(func.lower(User.email) == func.lower(user_data.email)))
+        if email_exists.scalar_one_or_none():
+            error_detail = "Email already taken"
+
+    # 3. The Single Error Exit Point
+    if error_detail:
+        # Append failure outcome and error details to the existing context
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.message": error_detail
+        }).warning(f"Registration validation failed: {error_detail}")
+
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=error_detail
         )
 
-    # Check if email already exists
-    email = await db.execute(select(User).where(
-            func.lower(User.email) == func.lower(user_data.email)
-        ))
-    db_email = email.scalar_one_or_none()
-
-    if db_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already taken"
+    # 4. The Happy Path Execution
+    try:
+        hashed_password = get_password_hash(user_data.password)
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            full_name=user_data.full_name,
+            hashed_password=hashed_password,
+            is_active=True,
         )
 
-    # Hash password using Argon2
-    hashed_password = get_password_hash(user_data.password)
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
 
-    # Create new user (no role_id - removed)
-    new_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        full_name=user_data.full_name,
-        hashed_password=hashed_password,
-        is_active=True,
-    )
+        # 5. The Single Success Exit Point
+        # Append success outcome and the newly generated user ID
+        log.bind(**{
+            "event.outcome": "success",
+            "user.id": str(new_user.id)
+        }).info(f"User registration successful for {new_user.username}")
 
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
+        return SessionResponse(
+            success=True,
+            username=new_user.username,
+            session_token=None,
+            user=UserResponse.model_validate(new_user)
+        )
 
-    # Return success response matching frontend expectations
-    return SessionResponse(
-        success=True,
-        username=new_user.username,
-        session_token=None,  # No session token on registration - user must login separately
-        user=UserResponse.model_validate(new_user)
-    )
+    except Exception as e:
+        # 6. Catch unexpected DB/Hashing errors
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected server error during registration")
 
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed due to server error"
+        ) from e
 
 @router.post("/login", response_model=SessionResponse)
 async def login(
@@ -101,91 +119,92 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db)
 ) -> SessionResponse:
-    """
-    Login user and create session (SESSION-BASED AUTH)
 
-    Frontend sends POST request to /api/auth/login with:
-    ```json
-    {
-        "username": "johndoe",
-        "password": "SecurePass123!"
-    }
-    ```
+    # Extract client IP for ECS compliance
+    client_ip = request.client.host if request.client else "unknown"
 
-    Returns:
-    - 200: Login successful with session token
-    - 401: Invalid credentials
-    - 403: Account inactive
-    """
+    # 1. Initialize ECS Context
+    log = logger.bind(**{
+        "event.category": ["iam", "authentication"],
+        "event.action": "login",
+        "user.name": credentials.username,
+        "source.ip": client_ip
+    })
+
+    error_detail = None
+    error_status = status.HTTP_401_UNAUTHORIZED
+    user = None
+
     try:
-        # Find user by username
-        result = await db.execute(
-            select(User).where(User.username == credentials.username)
-        )
+        # 2. Perform Validations (Guard Clauses)
+        result = await db.execute(select(User).where(User.username == credentials.username))
         user = result.scalar_one_or_none()
 
         if not user:
+            error_detail = "Invalid username or password"
+        elif not verify_password(credentials.password, user.hashed_password):
+            error_detail = "Invalid username or password"
+        elif not user.is_active:
+            error_detail = "Account is inactive"
+            error_status = status.HTTP_403_FORBIDDEN
+
+        # 3. The Single Error Exit Point
+        if error_detail:
+            log.bind(**{
+                "event.outcome": "failure",
+                "error.message": error_detail
+            }).warning(f"Login failed: {error_detail}")
+
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username or password"
+                status_code=error_status,
+                detail=error_detail
             )
 
-        # Verify password
-        if not verify_password(credentials.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username or password"
-            )
+        # TELL MYPY: If we reach here, we guarantee 'user' is a valid User object.
+        # This satisfies mypy without triggering Bandit's assert rule!
+        user = cast(User, user)
 
-        # Check if user is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is inactive"
-            )
-
-        # Generate secure session token
+        # 4. The Happy Path Execution
         session_token = secrets.token_urlsafe(32)
-
-        # Create session in database
         now = datetime.now()
         expires_at = now + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
+
         new_session = UserSession(
             session_token=session_token,
             user_id=user.id,
             created_at=now,
             expires_at=expires_at,
-            ip_address=request.client.host if request.client else None,
+            ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
 
         db.add(new_session)
         await db.commit()
 
-        # Determine if we are in production
+        # Cookie configuration for cross-domain auth
         is_production = settings.ENVIRONMENT == "production"
+        custom_domain = settings.COOKIE_DOMAIN if is_production else None
 
-        # Set HTTP-only cookie
         response.set_cookie(
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=is_production,                     # True on Railway, False locally
-            samesite="none" if is_production else "lax", # "none" on Railway, "lax" locally
+            secure=is_production,
+            samesite="none" if is_production else "lax",
+            domain=custom_domain,
             max_age=settings.SESSION_EXPIRE_MINUTES * 60,
             path="/",
         )
 
-        # Build user response (no role_id)
-        user_response = UserResponse(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            full_name=user.full_name,
-            is_active=user.is_active,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-        )
+        # Build user response
+        user_response = UserResponse.model_validate(user)
+
+        # 5. The Single Success Exit Point
+        log.bind(**{
+            "event.outcome": "success",
+            "user.id": str(user.id),
+            "user.email": user.email
+        }).info(f"User login successful for {user.username}")
 
         return SessionResponse(
             success=True,
@@ -197,8 +216,13 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {type(e).__name__}: {str(e)}")
-        logger.error(traceback.format_exc())
+        # 6. Catch unexpected server errors
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected server error during login")
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed due to server error"
@@ -270,34 +294,74 @@ async def get_current_user_endpoint(
         updated_at=current_user.updated_at,
     )
 
+
 @router.post("/logout")
 async def logout(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
-    """
-    Logout user - invalidate session and clear cookie
-    """
-    session_token = request.cookies.get("session_token")
 
-    if session_token:
-        # Delete session from database
-        result = await db.execute(
-            select(UserSession).where(UserSession.session_token == session_token)
-        )
-        session = result.scalar_one_or_none()
+    # Extract client IP
+    client_ip = request.client.host if request.client else "unknown"
 
-        if session:
-            await db.delete(session)
-            await db.commit()
+    # 1. Initialize ECS Context
+    log = logger.bind(**{
+        "event.category": ["iam", "authentication"],
+        "event.action": "logout",
+        "source.ip": client_ip
+    })
 
-        # Clear cookie
-        response.delete_cookie("session_token", path="/")
+    try:
+        session_token = request.cookies.get("session_token")
+        user_id_for_log = None
 
-    return {
-        "success": True,
-        "message": "Logged out successfully"
-    }
+        if session_token:
+            # Check for active session in DB
+            result = await db.execute(
+                select(UserSession).where(UserSession.session_token == session_token)
+            )
+            session = result.scalar_one_or_none()
 
+            if session:
+                user_id_for_log = str(session.user_id)
+                await db.delete(session)
+                await db.commit()
+
+            # Clear cookie with matching domain logic
+            is_production = settings.ENVIRONMENT == "production"
+            custom_domain = settings.COOKIE_DOMAIN if is_production else None
+
+            response.delete_cookie(
+                "session_token",
+                path="/",
+                domain=custom_domain,
+                secure=is_production,
+                samesite="none" if is_production else "lax",
+            )
+
+        # 2. Append Success Outcome (add user_id if we found it)
+        log_context = {"event.outcome": "success"}
+        if user_id_for_log:
+            log_context["user.id"] = user_id_for_log
+
+        log.bind(**log_context).info("User logged out successfully")
+
+        return {
+            "success": True,
+            "message": "Logged out successfully"
+        }
+
+    except Exception as e:
+        # 3. Catch unexpected server errors
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected server error during logout")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Logout failed due to server error"
+        ) from e
 
