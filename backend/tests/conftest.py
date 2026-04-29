@@ -92,6 +92,14 @@ async def async_engine()-> AsyncGenerator[AsyncEngine, None]:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
+        # Seed the Roles table immediately after creating the tables
+        await conn.execute(text(
+            "INSERT INTO roles (id, name, description) VALUES (1, 'user', 'Standard user') ON CONFLICT DO NOTHING;"
+        ))
+        await conn.execute(text(
+            "INSERT INTO roles (id, name, description) VALUES (2, 'admin', 'System administrator') ON CONFLICT DO NOTHING;"
+        ))
+
     yield engine
     await engine.dispose()
 
@@ -160,7 +168,8 @@ def create_test_user_synchronous():
                 new_user = User(
                     username=username,
                     email=f"{username.lower()}@example.com",
-                    hashed_password=hashed_pw
+                    hashed_password=hashed_pw,
+                    role_id=1
                 )
                 session.add(new_user)
                 await session.commit()
@@ -186,7 +195,8 @@ async def create_test_user(
             email=f"{username}@test.com",
             hashed_password=hashed_pw,
             full_name=f"Test User {username}",
-            is_active=True
+            is_active=True,
+            role_id=1  # 'user' role
         )
         db_session.add(new_user)
         await db_session.commit()
@@ -206,6 +216,7 @@ def setup_test_database_schema():
         async with engine.begin() as conn:
             # Tell SQLAlchemy to look at your models and generate the CREATE TABLE statements
             await conn.run_sync(Base.metadata.create_all)
+
         await engine.dispose()
 
     # We use our bulletproof synchronous wrapper so it doesn't fight Playwright!
@@ -227,7 +238,9 @@ def clean_database_before_test(request):
     async def _truncate():
         engine = create_async_engine(TEST_DATABASE_URL)
         async with engine.begin() as conn:
-            tables = [table.name for table in Base.metadata.sorted_tables]
+            # FIX: Filter out the 'roles' table so it survives the purge
+            tables = [table.name for table in Base.metadata.sorted_tables if table.name != 'roles']
+
             if tables:
                 table_string = ", ".join(tables)
                 await conn.execute(text(f"TRUNCATE TABLE {table_string} RESTART IDENTITY CASCADE;"))

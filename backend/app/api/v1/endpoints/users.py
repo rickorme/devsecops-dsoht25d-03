@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import RequireRole
 from app.api.v1.endpoints.auth import get_current_user_from_session
 from app.core.db import get_db
 from app.db.models import CircleMember, User
@@ -104,3 +105,42 @@ async def search_users(
         )
         for user in users
     ]
+
+# ======================================================
+# DELETE USER (admins only)
+# ======================================================
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    # The Magic Line: This injects the user ONLY if they are an admin/superadmin
+    current_admin: User = Depends(RequireRole(["admin", "superadmin"]))
+) -> None:
+    """
+    Delete a user account.
+    Requires 'admin' or 'superadmin' role.
+    """
+    # 1. Prevent admins from accidentally deleting themselves
+    if user_id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admins cannot delete their own accounts via this endpoint."
+        )
+
+    # 2. Find the target user
+    result = await db.execute(select(User).where(User.id == user_id))
+    user_to_delete = result.scalar_one_or_none()
+
+    if not user_to_delete:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # 3. Delete the user
+    await db.delete(user_to_delete)
+    await db.commit()
+
+    # Returning None with a 204 status code is the standard RESTful way
+    # to indicate a successful deletion without returning a body.
+    return None
