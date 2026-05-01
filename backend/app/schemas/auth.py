@@ -71,6 +71,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime | None
+    role: str | None
 
     model_config = ConfigDict(from_attributes=True)
 

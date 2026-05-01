@@ -293,6 +293,7 @@ async def get_current_user_endpoint(
         is_active=current_user.is_active,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
+        role=current_user.role.name if current_user.role else None,
     )
 
 
