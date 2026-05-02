@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 
 from app.core.config import settings
 from app.core.security import (
@@ -15,7 +16,9 @@ from app.core.security import (
     create_session_token,
     decode_token,
     get_password_hash,
+    sign_session_token,
     verify_password,
+    verify_session_token,
 )
 
 
@@ -360,3 +363,84 @@ class TestSecurityIntegration:
 
         # Tokens should be different
         assert user1_token != user2_token
+
+class TestCryptographicSessionSignatures:
+    """Test cryptographic signing and verification of session tokens using itsdangerous"""
+
+    def test_sign_session_token_format(self):
+        """Test that the signed token contains the raw token, timestamp, and signature"""
+        raw_token = "my_secure_session_token_123"
+        signed_token = sign_session_token(raw_token)
+
+        assert signed_token is not None
+        assert isinstance(signed_token, str)
+        assert signed_token != raw_token
+
+        # itsdangerous TimestampSigner format: payload.timestamp.signature
+        parts = signed_token.split(".")
+        assert len(parts) >= 3
+        # The payload (first part) should match the raw token exactly
+        assert parts[0] == raw_token
+
+    def test_verify_valid_session_token(self):
+        """Test that a valid signed token is successfully verified and returns the raw token"""
+        raw_token = "valid_session_token_xyz"
+        signed_token = sign_session_token(raw_token)
+
+        verified_raw_token = verify_session_token(signed_token)
+
+        # The verification should strip the signature and return the original token
+        assert verified_raw_token == raw_token
+
+    def test_verify_tampered_token_payload(self):
+        """Test that tampering with the token payload invalidates the signature"""
+        raw_token = "valid_session_token"
+        signed_token = sign_session_token(raw_token)
+
+        # Tamper with the payload (the first part before the dot)
+        # Change 'valid' to 'xalid'
+        tampered_token = "x" + signed_token[1:]
+
+        verified_raw_token = verify_session_token(tampered_token)
+
+        # The cryptographic check should fail and return None
+        assert verified_raw_token is None
+
+    def test_verify_tampered_token_signature(self):
+        """Test that tampering with the mathematical signature invalidates the token"""
+        raw_token = "valid_session_token"
+        signed_token = sign_session_token(raw_token)
+
+        # Tamper with the signature (the last part)
+        # Flip the last character
+        tampered_token = signed_token[:-1] + ("X" if signed_token[-1] != "X" else "Y")
+
+        verified_raw_token = verify_session_token(tampered_token)
+
+        # The cryptographic check should fail and return None
+        assert verified_raw_token is None
+
+    def test_verify_expired_session_token(self):
+        """Test that an explicitly expired token is rejected"""
+        raw_token = "expired_session_token"
+        signed_token = sign_session_token(raw_token)
+
+        # Verify with a max_age of -1 seconds (so it is instantly expired)
+        verified_raw_token = verify_session_token(signed_token, max_age=-1)
+
+        # The timestamp check should fail and return None
+        assert verified_raw_token is None
+
+    def test_signer_uses_application_secret_key(self):
+        """Test that the signer strictly relies on the application's SECRET_KEY"""
+        raw_token = "secret_key_test_token"
+
+        # Sign it with the application's actual key
+        signed_token = sign_session_token(raw_token)
+
+        # Attempt to verify it using a different, fake secret key
+        # We manually instantiate a signer with a bad key to simulate this
+        rogue_signer = TimestampSigner("wrong_secret_key_12345")
+
+        with pytest.raises(BadSignature):
+            rogue_signer.unsign(signed_token)
