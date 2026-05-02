@@ -1,6 +1,6 @@
 import sys
 
-from logtail import LogtailHandler
+import logtail  # type: ignore
 from loguru import logger
 
 from app.core.config import settings
@@ -19,7 +19,7 @@ logger.add(
 # 3. THE MAGIC: Add Better Stack (Logtail) Handler
 if settings.BETTER_STACK_TOKEN:
     # Initialize the Better Stack background sender
-    logtail_handler = LogtailHandler(source_token=settings.BETTER_STACK_TOKEN)
+    logtail_handler = logtail.LogtailHandler(source_token=settings.BETTER_STACK_TOKEN)
 
     # Plug it directly into loguru
     logger.add(
