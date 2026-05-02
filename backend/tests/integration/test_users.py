@@ -24,8 +24,7 @@ async def test_owner(create_test_user, client: AsyncClient) -> User:
     })
 
     assert login_response.status_code == 200
-    login_data = login_response.json()
-    session_token = login_data.get("session_token")
+    session_token = login_response.cookies.get("session_token")
     assert session_token is not None
 
     user.session_token = session_token

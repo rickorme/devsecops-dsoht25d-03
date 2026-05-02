@@ -120,7 +120,6 @@ class SessionResponse(BaseModel):
     """
     success: bool = Field(default=True)
     username: str
-    session_token: str | None = Field(None, description="Only if using session-based auth")
     user: UserResponse | None = Field(None, description="User data if requested")
 
 

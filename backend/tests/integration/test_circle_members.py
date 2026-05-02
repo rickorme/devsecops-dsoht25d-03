@@ -27,8 +27,8 @@ async def test_owner(create_test_user, client: AsyncClient) -> User:
     })
 
     assert login_response.status_code == 200
-    login_data = login_response.json()
-    user.session_token = login_data.get("session_token")
+    user.session_token = login_response.cookies.get("session_token")
+    assert user.session_token is not None
     return user
 
 
@@ -43,8 +43,8 @@ async def test_moderator(create_test_user, client: AsyncClient) -> User:
     })
 
     assert login_response.status_code == 200
-    login_data = login_response.json()
-    user.session_token = login_data.get("session_token")
+    user.session_token = login_response.cookies.get("session_token")
+    assert user.session_token is not None
     return user
 
 
@@ -59,8 +59,8 @@ async def test_member(create_test_user, client: AsyncClient) -> User:
     })
 
     assert login_response.status_code == 200
-    login_data = login_response.json()
-    user.session_token = login_data.get("session_token")
+    user.session_token = login_response.cookies.get("session_token")
+    assert user.session_token is not None
     return user
 
 
