@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.api.dependencies import RequireRole
 from app.api.v1.endpoints.auth import get_current_user_from_session
@@ -26,15 +27,27 @@ async def get_all_users(
     Get all users with pagination
     - Excludes the current user from the list
     - Authenticated users only
+    - Masks roles for non-admin users (Security)
     """
-    result = await db.execute(
+    # 1. Determine if the requester is an admin
+    is_admin = current_user.role and current_user.role.name in ["admin", "superadmin"]
+
+    # 2. Build the query
+    query = (
         select(User)
-        .where(User.id != current_user.id)  # excludem userul curent
+        .where(User.id != current_user.id)
         .offset(skip)
         .limit(limit)
     )
+
+    # 3. Only eager-load the roles from the DB if an admin is asking for them!
+    if is_admin:
+        query = query.options(joinedload(User.role))
+
+    result = await db.execute(query)
     users = result.scalars().all()
 
+    # 4. Conditionally expose the role data
     return [
         UserResponse(
             id=user.id,
@@ -44,6 +57,7 @@ async def get_all_users(
             is_active=user.is_active,
             created_at=user.created_at,
             updated_at=user.updated_at,
+            role=user.role.name if is_admin and user.role else None # Masked for standard users!
         )
         for user in users
     ]
