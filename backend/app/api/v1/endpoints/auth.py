@@ -80,24 +80,31 @@ async def register(
             full_name=user_data.full_name,
             hashed_password=hashed_password,
             is_active=True,
+            role_id=1
         )
 
         db.add(new_user)
         await db.commit()
-        await db.refresh(new_user)
+        # Re-fetch the user with their newly assigned role attached
+        result = await db.execute(
+            select(User)
+            .options(joinedload(User.role))
+            .where(User.id == new_user.id)
+        )
+        user_with_role = result.scalar_one()
 
         # 5. The Single Success Exit Point
         # Append success outcome and the newly generated user ID
         log.bind(**{
             "event.outcome": "success",
-            "user.id": str(new_user.id)
-        }).info(f"User registration successful for {new_user.username}")
+            "user.id": str(user_with_role.id)
+        }).info(f"User registration successful for {user_with_role.username}")
 
         return SessionResponse(
             success=True,
-            username=new_user.username,
+            username=user_with_role.username,
             session_token=None,
-            user=UserResponse.model_validate(new_user)
+            user=UserResponse.model_validate(user_with_role) # Now has the role!
         )
 
     except Exception as e:
@@ -138,7 +145,11 @@ async def login(
 
     try:
         # 2. Perform Validations (Guard Clauses)
-        result = await db.execute(select(User).where(User.username == credentials.username))
+        result = await db.execute(
+            select(User)
+            .options(joinedload(User.role))
+            .where(User.username == credentials.username)
+        )
         user = result.scalar_one_or_none()
 
         if not user:
@@ -293,6 +304,7 @@ async def get_current_user_endpoint(
         is_active=current_user.is_active,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
+        role=current_user.role.name if current_user.role else None,
     )
 
 

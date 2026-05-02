@@ -240,7 +240,7 @@ async def test_member_cannot_remove_anyone(
 
     assert response.status_code == 403
     result = response.json()
-    assert "Only owners and moderators" in result["detail"]
+    assert "Insufficient circle permissions to perform this action" in result["detail"]
 
 
 @pytest.mark.asyncio
@@ -384,7 +384,7 @@ async def test_moderator_cannot_promote(
 
     assert response.status_code == 403
     result = response.json()
-    assert "Only the circle owner" in result["detail"]
+    assert "Insufficient circle permissions to perform this action" in result["detail"]
 
 @pytest.mark.asyncio
 async def test_remove_member_circle_not_found(
@@ -468,4 +468,4 @@ async def test_update_role_circle_not_found(
         json={"role": "moderator"}
     )
 
-    assert response.status_code == 403
+    assert response.status_code == 404

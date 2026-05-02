@@ -286,7 +286,8 @@ class TestUserResponseSchema:
             "full_name": "John Doe",
             "is_active": True,
             "created_at": now,
-            "updated_at": now
+            "updated_at": now,
+            "role": "user"
         }
         user = UserResponse(**user_data)
         assert user.id == 1
@@ -307,7 +308,8 @@ class TestUserResponseSchema:
             "full_name": None,
             "is_active": True,
             "created_at": now,
-            "updated_at": None
+            "updated_at": None,
+            "role": "user"
         }
         user = UserResponse(**user_data)
         assert user.full_name is None
@@ -323,7 +325,8 @@ class TestUserResponseSchema:
             "full_name": None,
             "is_active": False,
             "created_at": now,
-            "updated_at": None
+            "updated_at": None,
+            "role": "user"
         }
         user = UserResponse(**user_data)
         assert user.is_active is False
@@ -420,7 +423,8 @@ class TestSchemaIntegration:
             username="newuser",
             email="new@example.com",
             password="NewPass123!",
-            full_name="New User"
+            full_name="New User",
+            role_id="1"
         )
 
         # Step 2: After DB save, create response (simulated)
@@ -432,7 +436,8 @@ class TestSchemaIntegration:
             full_name=registration.full_name,
             is_active=True,
             created_at=now,
-            updated_at=None
+            updated_at=None,
+            role="user"
         )
 
         assert response.username == registration.username

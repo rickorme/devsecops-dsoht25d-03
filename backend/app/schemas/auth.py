@@ -5,6 +5,7 @@ Updated to match frontend expectations: username-based login!
 """
 import re
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -71,6 +72,21 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime | None
+    role: str | None
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def extract_role_name(cls, v: Any) -> str | None:
+        # If SQLAlchemy hands us the Role object, explicitly cast the name to a string
+        if hasattr(v, "name"):
+            return str(v.name)
+
+        # Use type narrowing: if it's already a string, Mypy now guarantees it's safe to return
+        if isinstance(v, str):
+            return v
+
+        # Fallback for None (or any other unexpected type)
+        return None
 
     model_config = ConfigDict(from_attributes=True)
 
