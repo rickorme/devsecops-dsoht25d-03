@@ -286,6 +286,37 @@ async def get_current_user_from_session(
             detail="Session expired or invalid"
         )
 
+    # =========================================================================
+    # SESSION FINGERPRINTING (ANTI-HIJACKING)
+    # =========================================================================
+    current_ip = request.client.host if request.client else "unknown"
+    current_ua = request.headers.get("user-agent", "unknown")
+
+    # Only enforce if we successfully captured the baseline during login
+    ip_mismatch = session.ip_address != "unknown" and session.ip_address != current_ip
+    ua_mismatch = session.user_agent != "unknown" and session.user_agent != current_ua
+
+    if ip_mismatch or ua_mismatch:
+        # THREAT DETECTED: A stolen cookie is being used from a new location/device.
+        # Log the intrusion attempt for the SIEM
+        logger.bind(**{
+            "event.category": "intrusion_detection",
+            "event.outcome": "failure",
+            "source.ip": current_ip,
+            "user_agent.original": current_ua,
+            "expected.ip": session.ip_address,
+            "expected.ua": session.user_agent
+        }).warning("Session hijacking attempt detected and neutralized.")
+
+        # Immediately burn the session in the database
+        await db.delete(session)
+        await db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session invalidated due to context mismatch (IP or Device changed)"
+        )
+
     # Find user
     user_result = await db.execute(
         select(User).options(joinedload(User.role)).where(User.id == session.user_id)
