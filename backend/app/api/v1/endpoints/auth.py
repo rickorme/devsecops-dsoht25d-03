@@ -21,7 +21,12 @@ from sqlalchemy.orm import joinedload
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.logger import logger
-from app.core.security import get_password_hash, verify_password
+from app.core.security import (
+    get_password_hash,
+    sign_session_token,
+    verify_password,
+    verify_session_token,
+)
 from app.db.models import User, UserSession
 from app.schemas.auth import SessionResponse, UserCreate, UserLogin, UserResponse
 
@@ -177,6 +182,8 @@ async def login(
 
         # 4. The Happy Path Execution
         session_token = secrets.token_urlsafe(32)
+        # Sign the token
+        signed_token = sign_session_token(session_token)
         now = datetime.now()
         expires_at = now + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
 
@@ -198,7 +205,7 @@ async def login(
 
         response.set_cookie(
             key="session_token",
-            value=session_token,
+            value=signed_token,
             httponly=True,
             secure=is_production,
             samesite="none" if is_production else "lax",
@@ -248,18 +255,27 @@ async def get_current_user_from_session(
     Dependency to get current authenticated user
     Can be used in any endpoint that needs the current user
     """
-    session_token = request.cookies.get("session_token")
+    signed_token = request.cookies.get("session_token")
 
-    if not session_token:
+    if not signed_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
 
+    # CRYPTOGRAPHIC VERIFICATION (Zero DB touches!)
+    raw_token = verify_session_token(signed_token)
+    if not raw_token:
+        # If the math fails, we instantly bounce the request.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid, tampered, or expired session token"
+        )
+
     # Find valid session
     session_result = await db.execute(
         select(UserSession)
-        .where(UserSession.session_token == session_token)
+        .where(UserSession.session_token == raw_token)
         .where(UserSession.expires_at > datetime.now())
     )
     session = session_result.scalar_one_or_none()

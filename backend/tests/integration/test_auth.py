@@ -420,3 +420,52 @@ async def test_full_auth_flow(client: AsyncClient) -> None:
     )
     assert logout_response.status_code == 200
     assert logout_response.json()["success"] is True
+
+# ============================================================================
+# CRYPTOGRAPHIC SECURITY TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_cryptographic_session_signature(client: AsyncClient) -> None:
+    """
+    Test that valid session cookies allow access,
+    but tampered cookies trigger immediate 401 rejections via signature failure.
+    """
+    username = "tampertest"
+    password = "SecurePass123!"
+
+    # 1. Register and Login to get a valid signed cookie
+    await client.post("/api/v1/auth/register", json={
+        "username": username,
+        "password": password,
+        "email": "tamper@example.com"
+    })
+
+    login_response = await client.post("/api/v1/auth/login", json={
+        "username": username,
+        "password": password
+    })
+    assert login_response.status_code == 200
+
+    # Extract the valid signed cookie
+    valid_cookie = login_response.cookies.get("session_token")
+    assert valid_cookie is not None
+
+    # 2. Verify access with VALID cookie
+    client.cookies.set("session_token", valid_cookie)
+    me_response_valid = await client.get("/api/v1/auth/me")
+
+    assert me_response_valid.status_code == 200
+    assert me_response_valid.json()["username"] == username
+
+    # 3. Tamper with the cookie (simulate an attacker attempting to forge a session)
+    # The itsdangerous signer outputs: payload.timestamp.signature
+    # Changing even one character at the end invalidates the HMAC math
+    tampered_cookie = valid_cookie[:-1] + ("X" if valid_cookie[-1] != "X" else "Y")
+
+    # 4. Verify access is REJECTED with TAMPERED cookie
+    client.cookies.set("session_token", tampered_cookie)
+    me_response_tampered = await client.get("/api/v1/auth/me")
+
+    # Should be rejected mathematically before ever querying PostgreSQL
+    assert me_response_tampered.status_code == 401
