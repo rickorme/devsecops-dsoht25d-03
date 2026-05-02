@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
-from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
+from itsdangerous import BadSignature, TimestampSigner
 
 from app.core.config import settings
 from app.core.security import (
