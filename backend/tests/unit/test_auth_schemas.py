@@ -394,13 +394,11 @@ class TestSessionResponseSchema:
         """Test creating session response"""
         session_data = {
             "success": True,
-            "username": "johndoe",
-            "session_token": "abc123xyz"
+            "username": "johndoe"
         }
         session = SessionResponse(**session_data)
         assert session.success is True
         assert session.username == "johndoe"
-        assert session.session_token == "abc123xyz"
 
     def test_session_response_minimal(self):
         """Test session response with only required fields"""

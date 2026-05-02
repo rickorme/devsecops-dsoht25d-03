@@ -103,7 +103,6 @@ async def register(
         return SessionResponse(
             success=True,
             username=user_with_role.username,
-            session_token=None,
             user=UserResponse.model_validate(user_with_role) # Now has the role!
         )
 
@@ -221,7 +220,6 @@ async def login(
         return SessionResponse(
             success=True,
             username=user.username,
-            session_token=session_token,
             user=user_response
         )
 
