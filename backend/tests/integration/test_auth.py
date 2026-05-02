@@ -469,3 +469,62 @@ async def test_cryptographic_session_signature(client: AsyncClient) -> None:
 
     # Should be rejected mathematically before ever querying PostgreSQL
     assert me_response_tampered.status_code == 401
+
+
+# ============================================================================
+# ANTI-HIJACKING & FINGERPRINTING TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_session_fingerprinting_anti_hijacking(client: AsyncClient) -> None:
+    """
+    Test that changing environmental context (User-Agent)
+    invalidates the session and permanently burns the token.
+    """
+    username = "fingerprintuser"
+    password = "SecurePass123!"
+
+    # Define our two distinct environmental contexts
+    baseline_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LegitBrowser/1.0"
+    hacker_ua = "Curl/7.68.0 (HackerTerminal)"
+
+    # 1. Register the user
+    await client.post("/api/v1/auth/register", json={
+        "username": username,
+        "password": password,
+        "email": "fingerprint@example.com"
+    }, headers={"User-Agent": baseline_ua})
+
+    # 2. Login as the Legitimate User (Establishes the Baseline)
+    login_response = await client.post("/api/v1/auth/login", json={
+        "username": username,
+        "password": password
+    }, headers={"User-Agent": baseline_ua})
+    assert login_response.status_code == 200
+
+    # Extract the signed cookie
+    valid_cookie = login_response.cookies.get("session_token")
+    assert valid_cookie is not None
+    client.cookies.set("session_token", valid_cookie)
+
+    # 3. Legitimate Access (Should Succeed)
+    # The cookie and the User-Agent match the database records.
+    me_response_valid = await client.get("/api/v1/auth/me", headers={"User-Agent": baseline_ua})
+    assert me_response_valid.status_code == 200
+    assert me_response_valid.json()["username"] == username
+
+    # 4. Hijacked Access (Should Fail & Burn Session)
+    # The hacker has the VALID cryptographically signed cookie, but is using a different device.
+    me_response_hijacked = await client.get("/api/v1/auth/me", headers={"User-Agent": hacker_ua})
+
+    assert me_response_hijacked.status_code == 401
+    detail = me_response_hijacked.json().get("detail", "").lower()
+    assert "context mismatch" in detail or "invalidated" in detail
+
+    # 5. Verify Auto-Remediation (The "Burn" Feature)
+    # The legitimate user tries to use their browser again. Because the hacker
+    # tripped the alarm in Step 4, the session should be deleted from PostgreSQL!
+    me_response_burned = await client.get("/api/v1/auth/me", headers={"User-Agent": baseline_ua})
+
+    # Even though the original user has the right context, the session no longer exists.
+    assert me_response_burned.status_code == 401
