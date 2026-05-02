@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
+from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 
@@ -135,3 +136,30 @@ def create_session_expiry(hours: int = 24) -> datetime:
         Datetime object for session expiration
     """
     return datetime.now(UTC) + timedelta(hours=hours)
+
+
+# ============================================================================
+# SESSION TOEEN SIGNING
+# ============================================================================
+
+def sign_session_token(session_token: str) -> str:
+    """Cryptographically signs the session token."""
+    # Uses your app's secret key to create an HMAC signature
+    signer = TimestampSigner(settings.SECRET_KEY)
+
+    # Returns a string like: "raw_token.Timestamp.CryptographicSignature"
+    return signer.sign(session_token).decode("utf-8")
+
+def verify_session_token(signed_token: str, max_age: int = 604800) -> str | None:
+    """
+    Verifies the signature. If valid, returns the raw token.
+    If tampered with or expired, returns None.
+    max_age=604800 is 7 days in seconds.
+    """
+    signer = TimestampSigner(settings.SECRET_KEY)
+    try:
+        # .unsign() automatically checks the signature and the timestamp
+        return signer.unsign(signed_token, max_age=max_age).decode("utf-8")
+    except (BadSignature, SignatureExpired):
+        # Attack detected! The token was forged, altered, or is too old.
+        return None
