@@ -156,8 +156,8 @@ async def get_circle(
     http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_session),
-    # ANY member (or an admin) can view the circle
-    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER, CircleRole.MODERATOR, CircleRole.MEMBER]))
+    # UPDATED: Explicitly set action="read"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER, CircleRole.MODERATOR, CircleRole.MEMBER], action="read"))
 ) -> CircleResponse:
     """Get circle details by ID"""
 
@@ -188,8 +188,8 @@ async def update_circle(
     http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_session),
-    # ONLY the Owner (or an admin) can update the description
-    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER]))
+    # UPDATED: Explicitly set action="update"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="update"))
 ) -> CircleResponse:
     """Update circle details (owner only)"""
 
@@ -231,8 +231,8 @@ async def delete_circle(
     http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_session),
-    # ONLY the Owner (or an admin) can delete
-    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER]))
+    # UPDATED: Explicitly set action="delete"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="delete"))
 ) -> None:
     """Delete a circle (owner only)"""
 
@@ -267,8 +267,8 @@ async def update_circle_name(
     http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_session),
-    # ONLY the Owner (or an admin) can rename
-    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER]))
+    # UPDATED: Explicitly set action="update"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="update"))
 ) -> CircleResponse:
     """Update circle name (owner only)"""
 
