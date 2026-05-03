@@ -51,6 +51,9 @@ class Settings(BaseSettings):
         "http://localhost:4173",      # Vite preview
     ]
 
+    # BetterStack Logging Token (optional, for production monitoring)
+    BETTER_STACK_TOKEN: str | None = None
+
 
 # Create global settings instance
 settings = Settings()
