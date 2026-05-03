@@ -69,7 +69,7 @@ jobs:
       # ============================================================================
       
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         
         # Authenticate the runner's Docker daemon
       - name: Log in to DHI Registry
@@ -95,7 +95,7 @@ jobs:
       # ----------------------------------------------------------------------------
       
       - name: Install uv (Python package manager)
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -214,7 +214,7 @@ jobs:
       
       - name: ⚛️ Frontend - Setup Node.js
         if: matrix.target == 'frontend'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -355,3 +355,28 @@ jobs:
           # FIXED: upload must be 'always', 'never', or 'failure-only'
           # The previous expression ${{ github.repository_owner == github.actor }} was INCORRECT
           upload: always  # Always upload results to GitHub Security tab
+
+
+  # ============================================================================
+  # DEPLOYMENT JOB (Runs only after BOTH matrix targets pass)
+  # ============================================================================
+  deploy:
+    name: 🚀 Deploy to Railway
+    needs: ci  # <--- Waits for both Backend CI and Frontend CI to succeed
+    runs-on: ubuntu-latest
+    
+    # SECURITY GATE: Only deploy on pushes to main. 
+    # Ignore PRs, manual dispatches, and scheduled cron jobs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Deploy Backend to Railway
+        run: railway up --service backend --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
