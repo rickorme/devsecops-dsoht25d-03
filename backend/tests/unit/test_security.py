@@ -412,8 +412,18 @@ class TestCryptographicSessionSignatures:
         signed_token = sign_session_token(raw_token)
 
         # Tamper with the signature (the last part)
-        # Flip the last character
-        tampered_token = signed_token[:-1] + ("X" if signed_token[-1] != "X" else "Y")
+        # Find the last dot to locate the start of the signature
+        signature_start = signed_token.rindex(".") + 1
+
+        # Tamper with the FIRST character of the signature instead of the last
+        original_char = signed_token[signature_start]
+        tampered_char = "X" if original_char != "X" else "Y"
+
+        tampered_token = (
+            signed_token[:signature_start] +
+            tampered_char +
+            signed_token[signature_start + 1:]
+        )
 
         verified_raw_token = verify_session_token(tampered_token)
 
