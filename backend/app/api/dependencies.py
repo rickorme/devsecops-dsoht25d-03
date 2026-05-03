@@ -1,143 +1,316 @@
-# app/api/dependencies.py
-from fastapi import Depends, HTTPException, status
+# app/api/v1/endpoints/circles.py
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.dependencies import RequireCirclePermission
 from app.api.v1.endpoints.auth import get_current_user_from_session
 from app.core.db import get_db
-from app.db.models import Circle, CircleMember, Post, User
-from app.schemas.social import CircleRole
+from app.core.logger import logger
+from app.db.models import Circle, CircleMember, User
+from app.schemas.social import (
+    CircleCreate,
+    CircleMemberResponse,
+    CircleResponse,
+    CircleRole,
+)
 
+router = APIRouter(prefix="/circles", tags=["Circles"])
 
-class RequireRole:
-    """
-    RBAC Dependency Factory
-    Ensures the current user has one of the allowed roles.
-    """
-    def __init__(self, allowed_roles: list[str]):
-        self.allowed_roles = allowed_roles
+# --- DRY HELPER FUNCTION ---
+async def _build_circle_response(circle: Circle, db: AsyncSession) -> CircleResponse:
+    """Helper to consistently format a circle with its members and badges."""
+    member_responses = []
+    for member in circle.members:
+        user_result = await db.get(User, member.user_id)
+        if not user_result:
+            continue
 
-    async def __call__(self, current_user: User = Depends(get_current_user_from_session)) -> User:
-        # Check if the user has a role, and if it's in our allowed list
-        if not current_user.role or current_user.role.name not in self.allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient privileges to perform this action"
+        role_enum = CircleRole(member.role) if isinstance(member.role, str) else member.role
+        badge = {
+            CircleRole.OWNER: "👑",
+            CircleRole.MODERATOR: "🛡️",
+            CircleRole.MEMBER: "👤"
+        }.get(role_enum, "👤")
+
+        member_responses.append(
+            CircleMemberResponse(
+                circle_id=member.circle_id,
+                user_id=member.user_id,
+                username=user_result.username,
+                role=role_enum,
+                badge=badge,
+                joined_at=member.joined_at
             )
-        return current_user
+        )
+
+    owner = await db.get(User, circle.owner_id)
+    return CircleResponse(
+        id=circle.id,
+        name=circle.name,
+        description=circle.description,
+        owner_id=circle.owner_id,
+        owner_name=owner.username if owner else None,
+        members=member_responses,
+        member_count=len(circle.members),
+        created_at=circle.created_at
+    )
+# ---------------------------
+
+@router.get("/my", response_model=list[CircleResponse])
+async def get_my_circles(
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session)
+) -> list[CircleResponse]:
+    """Get circles where current user is a member (Admins see all)"""
+
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "get_my_circles",
+        "user.id": str(current_user.id),
+        "source.ip": client_ip
+    })
+
+    try:
+        if current_user.role and current_user.role.name in ["admin", "superadmin"]:
+            query = select(Circle).options(selectinload(Circle.members)).order_by(Circle.created_at.desc())
+        else:
+            query = (
+                select(Circle)
+                .join(CircleMember, Circle.id == CircleMember.circle_id)
+                .where(CircleMember.user_id == current_user.id)
+                .options(selectinload(Circle.members))
+                .order_by(Circle.created_at.desc())
+            )
+
+        result = await db.execute(query)
+        circles = result.scalars().all()
+
+        responses = [await _build_circle_response(c, db) for c in circles]
+
+        log.bind(event_outcome="success").info(f"Retrieved {len(responses)} circles for user")
+        return responses
+
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error fetching user circles")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-class RequireCirclePermission:
-    """
-    Unified ABAC/RBAC Dependency
-    Checks if a user has a specific role in a circle OR is a global admin.
-    """
-    def __init__(self, allowed_circle_roles: list[CircleRole]):
-        self.allowed_circle_roles = allowed_circle_roles
+@router.post("/", response_model=CircleResponse, status_code=status.HTTP_201_CREATED)
+async def create_circle(
+    circle_data: CircleCreate,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session)
+) -> CircleResponse:
+    """Create a new circle"""
 
-    async def __call__(
-        self,
-        circle_id: int, # FastAPI automatically extracts this from the URL path!
-        current_user: User = Depends(get_current_user_from_session),
-        db: AsyncSession = Depends(get_db)
-    ) -> Circle:
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "create_circle",
+        "user.id": str(current_user.id),
+        "source.ip": client_ip
+    })
 
-        # 1. Look up the requested circle WITH members eager-loaded
+    try:
+        existing = await db.execute(select(Circle).where(Circle.name == circle_data.name))
+        if existing.scalar_one_or_none():
+            log.bind(event_outcome="failure").warning("Circle creation failed: Name already exists")
+            raise HTTPException(status_code=400, detail="Circle name already exists")
+
+        new_circle = Circle(name=circle_data.name, description=circle_data.description, owner_id=current_user.id)
+        db.add(new_circle)
+        await db.flush()
+
+        owner_member = CircleMember(circle_id=new_circle.id, user_id=current_user.id, role=CircleRole.OWNER.value)
+        db.add(owner_member)
+        await db.commit()
+
+        result = await db.execute(select(Circle).options(selectinload(Circle.members)).where(Circle.id == new_circle.id))
+        response = await _build_circle_response(result.scalar_one(), db)
+
+        log.bind(**{"event.outcome": "success", "target.circle_id": str(response.id)}).info("Circle successfully created")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error creating circle")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get("/{circle_id}", response_model=CircleResponse)
+async def get_circle(
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session),
+    # UPDATED: Explicitly set action="read"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER, CircleRole.MODERATOR, CircleRole.MEMBER], action="read"))
+) -> CircleResponse:
+    """Get circle details by ID"""
+
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "get_circle",
+        "user.id": str(current_user.id),
+        "target.circle_id": str(circle.id),
+        "source.ip": client_ip
+    })
+
+    try:
+        response = await _build_circle_response(circle, db)
+        return response
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error retrieving circle details")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.put("/{circle_id}", response_model=CircleResponse)
+async def update_circle(
+    circle_data: CircleCreate,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session),
+    # UPDATED: Explicitly set action="update"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="update"))
+) -> CircleResponse:
+    """Update circle details (owner only)"""
+
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "update_circle",
+        "user.id": str(current_user.id),
+        "target.circle_id": str(circle.id),
+        "source.ip": client_ip
+    })
+
+    try:
+        circle.name = circle_data.name
+        circle.description = circle_data.description
+        await db.commit()
+
         result = await db.execute(
             select(Circle)
             .options(selectinload(Circle.members))
-            .where(Circle.id == circle_id)
+            .where(Circle.id == circle.id)
         )
-        circle = result.scalar_one_or_none()
+        response = await _build_circle_response(result.scalar_one(), db)
 
-        if not circle:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Circle not found"
-            )
+        log.bind(event_outcome="success").info("Circle details successfully updated")
+        return response
 
-        # 2. RBAC OVERRIDE (Global Admin Bypass)
-        if current_user.role and current_user.role.name in ["admin", "superadmin"]:
-            return circle # Admins skip the circle membership check entirely!
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error updating circle")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
-        # 3. ABAC CHECK (Circle Membership)
-        member_result = await db.execute(
-            select(CircleMember)
-            .where(CircleMember.circle_id == circle_id)
-            .where(CircleMember.user_id == current_user.id)
-        )
-        membership = member_result.scalar_one_or_none()
 
-        # 4. Enforce Permissions
-        if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not a member of this circle"
-            )
+@router.delete("/{circle_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_circle(
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session),
+    # UPDATED: Explicitly set action="delete"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="delete"))
+) -> None:
+    """Delete a circle (owner only)"""
 
-        if membership.role not in [role.value for role in self.allowed_circle_roles]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient circle permissions to perform this action"
-            )
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "delete_circle",
+        "user.id": str(current_user.id),
+        "target.circle_id": str(circle.id),
+        "source.ip": client_ip
+    })
 
-        return circle
+    try:
+        await db.delete(circle)
+        await db.commit()
 
-class RequirePostPermission:
-    """
-    Unified ABAC/RBAC Dependency for Posts
-    Allows access if: Global Admin OR Post Author OR has required Circle Role.
-    """
-    def __init__(self, action: str = "read"):
-        self.action = action  # "read" or "delete"
+        log.bind(event_outcome="success").info("Circle successfully deleted")
+        return None
 
-    async def __call__(
-        self,
-        post_id: int,
-        current_user: User = Depends(get_current_user_from_session),
-        db: AsyncSession = Depends(get_db)
-    ) -> Post:
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error deleting circle")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
-        # 1. Fetch Post with eager-loaded author and circle data
+
+@router.put("/{circle_id}/name", response_model=CircleResponse)
+async def update_circle_name(
+    request_data: dict,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_session),
+    # UPDATED: Explicitly set action="update"
+    circle: Circle = Depends(RequireCirclePermission([CircleRole.OWNER], action="update"))
+) -> CircleResponse:
+    """Update circle name (owner only)"""
+
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    log = logger.bind(**{
+        "event.category": ["social", "circle_management"],
+        "event.action": "update_circle_name",
+        "user.id": str(current_user.id),
+        "target.circle_id": str(circle.id),
+        "source.ip": client_ip
+    })
+
+    try:
+        new_name = request_data.get("name")
+        if not new_name or len(new_name) < 3:
+            log.bind(event_outcome="failure").warning("Circle rename failed: Name too short")
+            raise HTTPException(status_code=400, detail="Name must be at least 3 characters")
+
+        existing = await db.execute(select(Circle).where(Circle.name == new_name, Circle.id != circle.id))
+        if existing.scalar_one_or_none():
+            log.bind(event_outcome="failure").warning("Circle rename failed: Name already exists")
+            raise HTTPException(status_code=400, detail="A circle with this name already exists")
+
+        circle.name = new_name
+        await db.commit()
+
         result = await db.execute(
-            select(Post)
-            .options(selectinload(Post.author), selectinload(Post.circle))
-            .where(Post.id == post_id)
+            select(Circle)
+            .options(selectinload(Circle.members))
+            .where(Circle.id == circle.id)
         )
-        post = result.scalar_one_or_none()
+        response = await _build_circle_response(result.scalar_one(), db)
 
-        if not post:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+        log.bind(event_outcome="success").info("Circle name successfully updated")
+        return response
 
-        # 2. RBAC OVERRIDE (Global Admin Bypass)
-        if current_user.role and current_user.role.name in ["admin", "superadmin"]:
-            return post
-
-        # 3. ABAC OVERRIDE (Author Bypass)
-        if post.author_id == current_user.id:
-            return post
-
-        # 4. ABAC INHERITED (Circle Roles)
-        if post.circle_id:
-            member_result = await db.execute(
-                select(CircleMember)
-                .where(CircleMember.circle_id == post.circle_id)
-                .where(CircleMember.user_id == current_user.id)
-            )
-            membership = member_result.scalar_one_or_none()
-
-            if not membership:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this post")
-
-            # If deleting, require elevated circle privileges
-            if self.action == "delete" and membership.role not in ["owner", "moderator"]:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to delete this post")
-
-            return post
-
-        # 5. Public Posts
-        if self.action == "delete":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to delete this post")
-
-        return post
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.bind(**{
+            "event.outcome": "failure",
+            "error.type": type(e).__name__,
+            "error.message": str(e)
+        }).exception("Unexpected database error updating circle name")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
