@@ -181,7 +181,7 @@ jobs:
           category: container-scan-db
 
       # ----------------------------------------------------------------------------
-      # ARTIFACT REGISTRY PUSH (Only on Main Branch!)
+      # ARTIFACT REGISTRY PUSH (Only on push to Main Branch!)
       # ----------------------------------------------------------------------------
       - name: 🔐 Log in to GitHub Container Registry
         # Only run if we are on the backend job AND merging/pushing to the main branch
@@ -193,7 +193,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }} # Automatically provided by GitHub!
 
       - name: 🚀 Push Secure Backend Image to GHCR
-        if: matrix.target == 'backend' && github.ref == 'refs/heads/main'
+        # THE SECURITY GATE: Only push to the registry if we are merging to main.
+        # PRs will build the image to ensure it compiles, but will skip this push step.
+        if: matrix.target == 'backend' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           # Convert the repository owner name to lowercase (Docker requires lowercase)
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
@@ -320,7 +322,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🚀 Push Secure Frontend Image to GHCR
-        if: matrix.target == 'frontend' && github.ref == 'refs/heads/main'
+        if: matrix.target == 'frontend'  && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           
@@ -355,28 +357,3 @@ jobs:
           # FIXED: upload must be 'always', 'never', or 'failure-only'
           # The previous expression ${{ github.repository_owner == github.actor }} was INCORRECT
           upload: always  # Always upload results to GitHub Security tab
-
-
-  # ============================================================================
-  # DEPLOYMENT JOB (Runs only after BOTH matrix targets pass)
-  # ============================================================================
-  deploy:
-    name: 🚀 Deploy to Railway
-    needs: ci  # <--- Waits for both Backend CI and Frontend CI to succeed
-    runs-on: ubuntu-latest
-    
-    # SECURITY GATE: Only deploy on pushes to main. 
-    # Ignore PRs, manual dispatches, and scheduled cron jobs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
-      - name: Deploy Backend to Railway
-        run: railway up --service backend --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
